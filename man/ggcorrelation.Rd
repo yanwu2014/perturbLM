@@ -6,7 +6,8 @@
 \usage{
 ggcorrelation(x, y, x.lab = NULL, y.lab = NULL, title = NULL,
   pts.use = NULL, use.label = F, pts.label = NULL, font.size = 14,
-  label.font.size = 4, pt.size = 1, show.corr = F, box = T, alpha = 1)
+  label.font.size = 4, pt.size = 1, show.corr = F, box = T, alpha = 1,
+  color.magnitude = T)
 }
 \arguments{
 \item{x}{X-axis vector}
@@ -36,6 +37,8 @@ ggcorrelation(x, y, x.lab = NULL, y.lab = NULL, title = NULL,
 \item{box}{Force x and y vectors to be on the same scale}
 
 \item{alpha}{Data point transparency}
+
+\item{color.magnitude}{Color points by x + y magnitude}
 }
 \value{
 ggplot2 object with correlation plot
