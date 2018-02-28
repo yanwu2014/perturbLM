@@ -178,7 +178,7 @@ ggcorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.us
   if (color.magnitude) {
     gg.df$magnitude <- abs(x[pts.use]) + abs(y[pts.use])
   } else {
-    gg.df$magnitude <- 1
+    gg.df$magnitude <- 1.0
   }
 
   if (use.label) {
