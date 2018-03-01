@@ -156,7 +156,6 @@ ggheat <- function(m, rescaling = 'none', clustering = 'none', labCol = T, labRo
 #' @param show.corr Display pearson correlation in title
 #' @param box Force x and y vectors to be on the same scale
 #' @param alpha Data point transparency
-#' @param color.magnitude Color points by x + y magnitude
 #' @return ggplot2 object with correlation plot
 #'
 #' @import ggplot2
@@ -165,7 +164,7 @@ ggheat <- function(m, rescaling = 'none', clustering = 'none', labCol = T, labRo
 #'
 ggcorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.use = NULL, use.label = F,
                           pts.label = NULL, font.size = 14, label.font.size = 4, pt.size = 1,
-                          show.corr = F, box = T, alpha = 1, color.magnitude = T) {
+                          show.corr = F, box = T, alpha = 1) {
   stopifnot(names(x) == names(y))
   if (is.null(pts.use)) {
     pts.use <- names(x)
@@ -173,13 +172,10 @@ ggcorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.us
   corr.use <- paste("R = ", round(cor(x[pts.use], y[pts.use]), 2))
 
   gg.df <- data.frame(x[pts.use],y[pts.use])
+  gg.df$magnitude <- abs(x[pts.use]) + abs(y[pts.use])
+  gg.df$magnitude <- as.numeric(gg.df$magnitude)
   gg.df$name <- names(x[pts.use])
 
-  if (color.magnitude) {
-    gg.df$magnitude <- abs(x[pts.use]) + abs(y[pts.use])
-  } else {
-    gg.df$magnitude <- 1.0
-  }
 
   if (use.label) {
     gg.df$label <- pts.label
@@ -199,7 +195,7 @@ ggcorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.us
   max.pt <- max(c(max(x[pts.use]), max(y[pts.use])))
 
   ggobj <- ggplot(gg.df, aes(x, y)) + geom_point(aes(colour = magnitude), size = pt.size, alpha = alpha) +
-    scale_colour_gradient(low = 'grey', high = 'darkblue') + theme_classic() +
+    scale_colour_gradient(low = 'grey', high = 'blue') + theme_classic() +
     theme(legend.position="none", text = element_text(size = font.size)) +
     xlab(x.lab) + ylab(y.lab) + ggtitle(main.title)
   if (box) {
