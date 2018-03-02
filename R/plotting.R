@@ -224,6 +224,6 @@ gghexbin <- function(v, w, n.bins = 100) {
   df <- data.frame(x = v[ii], y = w[ii])
   ggobj <- ggplot(df) + geom_hex(aes(x, y), bins = n.bins, alpha = 1) +
     theme_classic() + theme(axis.title.x = element_blank(), axis.title.y = element_blank(), legend.position = "none") +
-    scale_fill_gradient(low = "skyblue", high = "tomato") + ggtitle(paste("R =", r))
+    scale_fill_gradient(low = "deepskyblue3", high = "tomato3") + ggtitle(paste("R =", r))
   ggobj
 }
