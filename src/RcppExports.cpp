@@ -52,25 +52,12 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// winsorizeMatrix
-SEXP winsorizeMatrix(SEXP Mat, SEXP Trim);
-RcppExport SEXP _perturbLM_winsorizeMatrix(SEXP MatSEXP, SEXP TrimSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type Mat(MatSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type Trim(TrimSEXP);
-    rcpp_result_gen = Rcpp::wrap(winsorizeMatrix(Mat, Trim));
-    return rcpp_result_gen;
-END_RCPP
-}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_perturbLM_omitNaCpp", (DL_FUNC) &_perturbLM_omitNaCpp, 1},
     {"_perturbLM_sortCpp", (DL_FUNC) &_perturbLM_sortCpp, 1},
     {"_perturbLM_calcPvalLessCpp", (DL_FUNC) &_perturbLM_calcPvalLessCpp, 2},
     {"_perturbLM_calcPvalGreaterCpp", (DL_FUNC) &_perturbLM_calcPvalGreaterCpp, 2},
-    {"_perturbLM_winsorizeMatrix", (DL_FUNC) &_perturbLM_winsorizeMatrix, 2},
     {NULL, NULL, 0}
 };
 

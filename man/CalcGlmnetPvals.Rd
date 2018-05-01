@@ -4,8 +4,9 @@
 \alias{CalcGlmnetPvals}
 \title{Calculate regression coefficients and p-values via permutation testing}
 \usage{
-CalcGlmnetPvals(design.matrix, metadata, y, alpha, lambda, family, n.rand,
-  n.cores, n.bins = 10, use.quantiles = T, output.name = "cf")
+CalcGlmnetPvals(design.matrix, metadata, y, alpha, lambda, lambda.seq, family,
+  ctrl = NULL, n.rand = 20, n.cores = 16, n.bins = 10,
+  use.quantiles = T, output.name = "cf")
 }
 \arguments{
 \item{design.matrix}{Design matrix for regression}
@@ -18,7 +19,11 @@ CalcGlmnetPvals(design.matrix, metadata, y, alpha, lambda, family, n.rand,
 
 \item{lambda}{Coefficient regularization parameter}
 
+\item{lambda.seq}{Regularization sequence to follow}
+
 \item{family}{Regression family to use}
+
+\item{ctrl}{Control variable to compare against (optional)}
 
 \item{n.rand}{Number of permutations for calculating coefficient significance}
 
@@ -31,8 +36,7 @@ CalcGlmnetPvals(design.matrix, metadata, y, alpha, lambda, family, n.rand,
 \item{output.name}{Column name of regression coefficient}
 }
 \value{
-If binning genes, returns a dataframe with Gene, Perturbation, Regression Coefficient (cf), and P-value.
-        Otherwise returns a list of regression coefficients and p-values
+Returns a dataframe with Gene, Perturbation, log-FC, p-value
 }
 \description{
 Calculate regression coefficients and p-values via permutation testing

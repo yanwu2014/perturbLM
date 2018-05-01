@@ -11,16 +11,13 @@
 #' @import Seurat
 #' @export
 #'
-BuildSNN <- function(data.use, k.param = 10, k.scale = 10, prune.SNN = 1/15) {
+CalcSNN <- function(data.use, k.param = 10, prune.SNN = 1/15) {
   n.cells <- nrow(data.use)
 
-  my.knn <- get.knn(data = data.use, k = min(k.scale * k.param, n.cells - 1))
+  my.knn <- get.knn(data = data.use, k = min(k.param, n.cells - 1))
   nn.ranked <- cbind(1:n.cells, my.knn$nn.index[, 1:(k.param - 1)])
-  nn.large <- my.knn$nn.index
 
-  w <- Seurat:::CalcSNNSparse(cell.names = rownames(data.use), k.param = k.param, nn.large = nn.large,
-                              nn.ranked = nn.ranked, prune.SNN = prune.SNN, print.output = T)
-
+  w <- Seurat:::ComputeSNN(nn.ranked, prune.SNN)
   return(w)
 }
 

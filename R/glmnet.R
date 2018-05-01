@@ -1,10 +1,27 @@
 #### Linear models ####
 #' @import glmnet
 #' @import matrixStats
+#' @import compiler
 #'
 #' @useDynLib perturbLM
 #' @importFrom Rcpp sourceCpp
 NULL
+
+
+#' Calculate log-FC for each genotype against the control
+#'
+#' @param X Design matrix
+#' @param Y Gene expression
+#' @param ctrl Control genotype
+#'
+#' @return log-FC matrix
+#' @export
+#'
+CalcLogFC <- function(X, Y, ctrl, eps = 1e-3) {
+  mean.exprs <- apply(X, 2, function(ix) Matrix::colMeans(Y[ix == 1,]))
+  log.fc <- apply(mean.exprs, 2, function(x) log2((x + eps)/(mean.exprs[,ctrl] + eps)))
+  return(log.fc)
+}
 
 
 #' Extract coefficient matrix from a multigaussian glmnet object
@@ -15,13 +32,56 @@ NULL
 #' @return Matrix of regression coefficients
 #' @export
 #'
-GetCoefMatrix <- function(mfit, best.lambda) {
-  cfs <- coef(mfit, s = best.lambda)
-  cfs <- lapply(cfs, function(x) {y <- as.numeric(x); names(y) <- rownames(x); return(y)})
-  cfs <- do.call('rbind', cfs)
+GetCoefMatrix <- function(mfit, lambda) {
+  cfs <- glmnet::coef.glmnet(mfit, s = lambda)
+  cfs <- sapply(cfs, function(x) {
+    y <- as.numeric(x)
+    names(y) <- rownames(x)
+    return(y)
+  })
   colnames(cfs) <- gsub('genotype', '', colnames(cfs))
   return(cfs)
 }
+GetCoefMatrix <- compiler::cmpfun(GetCoefMatrix)
+
+
+#' Calculate penalized linear regression with glmnet
+#'
+#' @param design.matrix Design matrix for regression
+#' @param metadata Additional covariates to take into account (will not be permuted)
+#' @param y Linear model response
+#' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
+#' @param lambda Coefficient regularization parameter
+#' @param lambda.seq Regularization sequence to follow
+#' @param family Regression family to use
+#' @param ctrl Control variable in the design matrix (optional)
+#'
+#' @return Matrix of regression coefficients
+#' @export
+#'
+CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda, lambda.seq, family, ctrl = NULL) {
+  if (is.null(ctrl)) {
+    x <- as.matrix(cbind(design.matrix, metadata))
+    mfit <- glmnet::glmnet(x, y = y, family = family, alpha = alpha, lambda = lambda.seq,
+                           standardize = F)
+    cfs <- GetCoefMatrix(mfit, lambda)
+    cfs <- cfs[,colnames(design.matrix)]
+  } else {
+    stopifnot(ctrl %in% colnames(design.matrix))
+    genotypes <- colnames(design.matrix)[colnames(design.matrix) != ctrl]
+    cfs <- vapply(genotypes, function(g) {
+      ix <- Matrix::rowSums(design.matrix[,c(g,ctrl)]) > 0
+      x <- as.matrix(cbind(design.matrix[ix, g], metadata[ix,]))
+      mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.seq,
+                             standardize = F)
+      return(GetCoefMatrix(mfit, lambda)[,2])
+    }, rep(0, ncol(y)))
+    colnames(cfs) <- genotypes
+  }
+
+  return(cfs)
+}
+CalcGlmnet <- compiler::cmpfun(CalcGlmnet)
 
 
 #' Calculate regression coefficients and p-values via permutation testing
@@ -31,55 +91,47 @@ GetCoefMatrix <- function(mfit, best.lambda) {
 #' @param y Linear model response
 #' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
 #' @param lambda Coefficient regularization parameter
+#' @param lambda.seq Regularization sequence to follow
 #' @param family Regression family to use
+#' @param ctrl Control variable to compare against (optional)
 #' @param n.rand Number of permutations for calculating coefficient significance
 #' @param n.cores Number of cores to use
 #' @param n.bins If binning genes, number of bins to use
 #' @param use.quantiles If binning genes, whether or not to bin by quantile
 #' @param output.name Column name of regression coefficient
 #'
-#' @return If binning genes, returns a dataframe with Gene, Perturbation, Regression Coefficient (cf), and P-value.
-#'         Otherwise returns a list of regression coefficients and p-values
+#' @return Returns a dataframe with Gene, Perturbation, log-FC, p-value
 #' @import snow
 #' @import lsr
 #' @import qvalue
 #' @importFrom data.table rbindlist
 #' @export
 #'
-CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda, family, n.rand, n.cores,
-                            n.bins = 10, use.quantiles = T, output.name = "cf") {
-  mfit <- glmnet::glmnet(Matrix(cbind(design.matrix, metadata)), y = y, family = family, alpha = alpha, lambda = lambda,
-                         standardize = F)
-  cfs <- GetCoefMatrix(mfit, lambda)
+CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda, lambda.seq, family,
+                            ctrl = NULL, n.rand = 20, n.cores = 16, n.bins = 10, use.quantiles = T,
+                            output.name = "cf") {
 
-  cols.keep <- colnames(cfs)[2:ncol(cfs)]
-  cols.keep <- cols.keep[!cols.keep %in% colnames(metadata)]
+  metadata <- as.matrix(metadata)
+  cfs <- CalcGlmnet(design.matrix, metadata, y, alpha, lambda, lambda.seq, family, ctrl)
 
   cl <- snow::makeCluster(n.cores, type = "SOCK")
-  snow:: clusterExport(cl, c("design.matrix", "y", "metadata", "alpha", "lambda", "family", "GetCoefMatrix"),
-                       envir = environment())
+  snow::clusterExport(cl, c("design.matrix", "y", "metadata", "alpha", "lambda", "lambda.seq", "family",
+                            "GetCoefMatrix"),
+                      envir = environment())
   source.log <- snow::parLapply(cl, 1:n.cores, function(i) library(glmnet))
   cfs.rand <- snow::parLapply(cl, 1:n.rand, function(i) {
     design.matrix.permute <- design.matrix[sample(1:nrow(design.matrix)),]
-    mfit <- glmnet::glmnet(Matrix(cbind(design.matrix.permute, metadata)), y = y, family = family, alpha = alpha, lambda = lambda,
-                           standardize = F)
-    GetCoefMatrix(mfit, lambda)
+    CalcGlmnet(design.matrix.permute, metadata, y, alpha, lambda, lambda.seq, family, ctrl)
   })
+  snow::stopCluster(cl)
 
-  gene_vars <- matrixStats::colVars(y)
-  gene_avgs <- colMeans(y)
-  gene.covs <- data.frame(gene_avgs, gene_vars)
-
-  cfs <- cfs[,cols.keep]
-  cfs.rand <- lapply(cfs.rand, function(x) x[,cols.keep])
-
+  gene.covs <- data.frame(gene_avgs = colMeans(y), gene_vars = matrixStats::colVars(y))
   null.coefs.df <- lapply(cfs.rand, .flatten_score_matrix, output.name = output.name,
                           gene.covs = gene.covs, group.covs = NULL)
   null.coefs.df <- rbindlist(null.coefs.df)
   null.coefs.df <- .get_multi_bins(null.coefs.df, colnames(gene.covs), n.bins, use.quantiles, bin.group = T)
   null.binned.dat <- .get_binned_list(null.coefs.df, output.name)
-  rm(null.coefs.df)
-  invisible(gc())
+  rm(null.coefs.df); invisible(gc());
 
   coefs.df <- .flatten_score_matrix(cfs, output.name, gene.covs, NULL)
   coefs.df <- .get_multi_bins(coefs.df, colnames(gene.covs), n.bins, use.quantiles, bin.group = T)
@@ -89,6 +141,7 @@ CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda, family, n
   coefs.df[c("gene_avgs", "gene_vars", "bin.index")] <- NULL
   return(coefs.df)
 }
+
 
 #### Permutation testing and P-value matrix manipulation ####
 
@@ -113,6 +166,7 @@ CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda, family, n
   }
   return(p.vals)
 }
+.calc_pvals_cfs <- compiler::cmpfun(.calc_pvals_cfs)
 
 
 ## Helper function for p-value calculation.
@@ -149,6 +203,7 @@ CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda, family, n
 
   return(scores.df)
 }
+.flatten_score_matrix <- compiler::cmpfun(.flatten_score_matrix)
 
 
 ## Helper function for p-value calculation.
@@ -187,6 +242,7 @@ CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda, family, n
   scores.df$bin.index <- vapply(bin, function(x) bin.idx[[x]], 1)
   return(scores.df)
 }
+.get_multi_bins <- compiler::cmpfun(.get_multi_bins)
 
 
 ## Helper function for p-value calculation.
@@ -203,6 +259,7 @@ CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda, family, n
   })
   return(binned.dat)
 }
+.get_binned_list <- compiler::cmpfun(.get_binned_list)
 
 
 ## Helper function for p-value calculation.
@@ -218,6 +275,7 @@ CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda, family, n
   }
   return(p.val)
 }
+.fast_pvals <- compiler::cmpfun(.fast_pvals)
 
 
 ## Helper function for p-value calculation.
@@ -251,3 +309,5 @@ CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda, family, n
   scores.df <- scores.df[order(scores.df$p_val),]
   return(scores.df)
 }
+.calc_emp_pvals <- compiler::cmpfun(.calc_emp_pvals)
+

@@ -4,7 +4,7 @@
 \alias{GetCoefMatrix}
 \title{Extract coefficient matrix from a multigaussian glmnet object}
 \usage{
-GetCoefMatrix(mfit, best.lambda)
+GetCoefMatrix(mfit, lambda)
 }
 \arguments{
 \item{mfit}{Glmnet object (multigaussian)}

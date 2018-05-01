@@ -17,7 +17,3 @@ calcPvalGreaterCpp <- function(v, x) {
     .Call('_perturbLM_calcPvalGreaterCpp', PACKAGE = 'perturbLM', v, x)
 }
 
-winsorizeMatrix <- function(Mat, Trim) {
-    .Call('_perturbLM_winsorizeMatrix', PACKAGE = 'perturbLM', Mat, Trim)
-}
-

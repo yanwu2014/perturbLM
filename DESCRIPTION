@@ -25,5 +25,7 @@ Imports:
       data.table,
       FNN,
       ggplot2,
-      matrixStats
+      matrixStats,
+      compiler,
+      swne
 RoxygenNote: 6.0.1

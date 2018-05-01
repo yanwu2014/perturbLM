@@ -162,9 +162,9 @@ ggheat <- function(m, rescaling = 'none', clustering = 'none', labCol = T, labRo
 #' @importFrom ggrepel geom_text_repel
 #' @export
 #'
-ggcorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.use = NULL, use.label = F,
-                          pts.label = NULL, font.size = 14, label.font.size = 4, pt.size = 1,
-                          show.corr = F, box = T, alpha = 1) {
+PlotCorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.use = NULL, use.label = F,
+                            pts.label = NULL, font.size = 14, label.font.size = 4, pt.size = 1,
+                            show.corr = F, box = T, alpha = 1) {
   stopifnot(names(x) == names(y))
   if (is.null(pts.use)) {
     pts.use <- names(x)
@@ -218,7 +218,7 @@ ggcorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.us
 #' @import ggplot2
 #' @export
 #'
-gghexbin <- function(v, w, n.bins = 100) {
+PlotHexBin <- function(v, w, n.bins = 100) {
   ii <- intersect(names(v), names(w))
   r <- round(cor(v[ii], w[ii]), 3)
   df <- data.frame(x = v[ii], y = w[ii])

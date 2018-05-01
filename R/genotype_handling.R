@@ -23,6 +23,7 @@ FlattenGenotypeList <- function(genotypes.list) {
   if (any(is.na(genotypes))) { stop("Some unassigned cells"); }
   return(genotypes)
 }
+FlattenGenotypeList <- compiler::cmpfun(FlattenGenotypeList)
 
 
 .get_single_genotypes <- function(genotypes.list, min.cells = 1) {
@@ -33,6 +34,8 @@ FlattenGenotypeList <- function(genotypes.list) {
   names(genotypes.list) <- colnames(genotypes.matrix)
   return(genotypes.list)
 }
+.get_single_genotypes <- compiler::cmpfun(.get_single_genotypes)
+
 
 
 #' Convert genotypes from named vector to list
@@ -54,6 +57,7 @@ UnflattenCellGenotypes <- function(cell.genotypes, min.cells = 1) {
   }
   return(genotypes.list)
 }
+UnflattenCellGenotypes <- compiler::cmpfun(UnflattenCellGenotypes)
 
 
 #' Read in genotypes dictionary from csv file. Returns an R list.
@@ -72,6 +76,7 @@ ReadGenotypes <- function(pheno.dict.file, sep.char = ",") {
   names(genotypes.list) <- genotypes
   return(genotypes.list)
 }
+ReadGenotypes <- compiler::cmpfun(ReadGenotypes)
 
 
 #' Write genotypes to csv file
@@ -88,6 +93,7 @@ WriteGenotypes <- function(genotypes.list, out.file) {
   writeLines(geno.data, fileConn)
   close(fileConn)
 }
+WriteGenotypes <- compiler::cmpfun(WriteGenotypes)
 
 
 #' Convert genotypes list to design matrix
@@ -104,7 +110,6 @@ WriteGenotypes <- function(genotypes.list, out.file) {
 #' @export
 #'
 DesignMatrixGenotypes <- function(genotypes.list, max.genotypes = 2, min.cells = 5, drop.cells = T) {
-  require(hash)
   cell.names <- unique(unlist(genotypes.list, F, F))
   single.genotypes <- names(genotypes.list)
 
@@ -155,8 +160,9 @@ DesignMatrixGenotypes <- function(genotypes.list, max.genotypes = 2, min.cells =
   } else {
     design.mat <- single.mat
   }
-  return(design.mat)
+  return(Matrix(design.mat))
 }
+DesignMatrixGenotypes <- compiler::cmpfun(DesignMatrixGenotypes)
 
 
 #' Pad design matrix with zeros for cells without a called genotype
@@ -172,6 +178,23 @@ PadDesignMatrix <- function(X, row.names) {
   Y[rownames(X),] <- X
   return(Y)
 }
+
+
+#' Filters out cells that belong to control genotype and other genotypes
+#'
+#' @param design.mat Design matrix
+#' @return Filtered design matrix
+#' @export
+#'
+CleanDesignCtrl <- function(design.mat) {
+  ctrl.iy <- which(colnames(design.mat) == ctrl)
+  design.mat <- Matrix(apply(design.mat, 1, function(x) {
+    if (x[[ctrl.iy]] == 1 && sum(x) > 1) { x[[ctrl.iy]] <- 0 }
+    return(x)
+  }))
+  return(Matrix::t(design.mat))
+}
+CleanDesignCtrl <- compiler::cmpfun(CleanDesignCtrl)
 
 
 #' Counts the number of cells in each genotype x cluster combination
@@ -195,3 +218,4 @@ GenotypeClusterCounts <- function(genotypes.list, clusters.list) {
   }
   return(df)
 }
+GenotypeClusterCounts <- compiler::cmpfun(GenotypeClusterCounts)
