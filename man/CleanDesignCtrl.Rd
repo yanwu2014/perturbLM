@@ -4,7 +4,7 @@
 \alias{CleanDesignCtrl}
 \title{Filters out cells that belong to control genotype and other genotypes}
 \usage{
-CleanDesignCtrl(design.mat)
+CleanDesignCtrl(design.mat, ctrl)
 }
 \arguments{
 \item{design.mat}{Design matrix}

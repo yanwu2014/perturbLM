@@ -4,7 +4,7 @@
 \alias{CalcGlmnet}
 \title{Calculate penalized linear regression with glmnet}
 \usage{
-CalcGlmnet(design.matrix, metadata, y, alpha, lambda, lambda.seq, family,
+CalcGlmnet(design.matrix, metadata, y, alpha, lambda.use, lambda.seq, family,
   ctrl = NULL)
 }
 \arguments{
@@ -16,7 +16,7 @@ CalcGlmnet(design.matrix, metadata, y, alpha, lambda, lambda.seq, family,
 
 \item{alpha}{Elasticnet ratio: (0 is fully L2, 1 fully is L1)}
 
-\item{lambda}{Coefficient regularization parameter}
+\item{lambda.use}{Coefficient regularization parameter}
 
 \item{lambda.seq}{Regularization sequence to follow}
 

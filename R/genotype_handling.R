@@ -186,7 +186,7 @@ PadDesignMatrix <- function(X, row.names) {
 #' @return Filtered design matrix
 #' @export
 #'
-CleanDesignCtrl <- function(design.mat) {
+CleanDesignCtrl <- function(design.mat, ctrl) {
   ctrl.iy <- which(colnames(design.mat) == ctrl)
   design.mat <- Matrix(apply(design.mat, 1, function(x) {
     if (x[[ctrl.iy]] == 1 && sum(x) > 1) { x[[ctrl.iy]] <- 0 }

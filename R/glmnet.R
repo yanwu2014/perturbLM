@@ -51,7 +51,7 @@ GetCoefMatrix <- compiler::cmpfun(GetCoefMatrix)
 #' @param metadata Additional covariates to take into account (will not be permuted)
 #' @param y Linear model response
 #' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
-#' @param lambda Coefficient regularization parameter
+#' @param lambda.use Coefficient regularization parameter
 #' @param lambda.seq Regularization sequence to follow
 #' @param family Regression family to use
 #' @param ctrl Control variable in the design matrix (optional)
@@ -59,23 +59,23 @@ GetCoefMatrix <- compiler::cmpfun(GetCoefMatrix)
 #' @return Matrix of regression coefficients
 #' @export
 #'
-CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda, lambda.seq, family, ctrl = NULL) {
+CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, lambda.seq, family, ctrl = NULL) {
+  design.matrix <- as.matrix(design.matrix)
   if (is.null(ctrl)) {
-    x <- as.matrix(cbind(design.matrix, metadata))
+    x <- Matrix(cbind(design.matrix, metadata))
     mfit <- glmnet::glmnet(x, y = y, family = family, alpha = alpha, lambda = lambda.seq,
                            standardize = F)
-    cfs <- GetCoefMatrix(mfit, lambda)
+    cfs <- GetCoefMatrix(mfit, lambda.use)
     cfs <- cfs[,colnames(design.matrix)]
   } else {
-    stopifnot(ctrl %in% colnames(design.matrix))
     genotypes <- colnames(design.matrix)[colnames(design.matrix) != ctrl]
-    cfs <- vapply(genotypes, function(g) {
-      ix <- Matrix::rowSums(design.matrix[,c(g,ctrl)]) > 0
-      x <- as.matrix(cbind(design.matrix[ix, g], metadata[ix,]))
+    cfs <- sapply(genotypes, function(g) {
+      ix <- rowSums(design.matrix[,c(g,ctrl)]) > 0
+      x <- Matrix(cbind(design.matrix[ix, g], metadata[ix,]))
       mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.seq,
                              standardize = F)
-      return(GetCoefMatrix(mfit, lambda)[,2])
-    }, rep(0, ncol(y)))
+      return(GetCoefMatrix(mfit, lambda.use)[,2])
+    })
     colnames(cfs) <- genotypes
   }
 
@@ -90,7 +90,7 @@ CalcGlmnet <- compiler::cmpfun(CalcGlmnet)
 #' @param metadata Additional covariates to take into account (will not be permuted)
 #' @param y Linear model response
 #' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
-#' @param lambda Coefficient regularization parameter
+#' @param lambda.use Coefficient regularization parameter
 #' @param lambda.seq Regularization sequence to follow
 #' @param family Regression family to use
 #' @param ctrl Control variable to compare against (optional)
@@ -107,21 +107,21 @@ CalcGlmnet <- compiler::cmpfun(CalcGlmnet)
 #' @importFrom data.table rbindlist
 #' @export
 #'
-CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda, lambda.seq, family,
+CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda.use, lambda.seq, family,
                             ctrl = NULL, n.rand = 20, n.cores = 16, n.bins = 10, use.quantiles = T,
                             output.name = "cf") {
 
   metadata <- as.matrix(metadata)
-  cfs <- CalcGlmnet(design.matrix, metadata, y, alpha, lambda, lambda.seq, family, ctrl)
+  cfs <- CalcGlmnet(design.matrix, metadata, y, alpha, lambda.use, lambda.seq, family, ctrl)
 
   cl <- snow::makeCluster(n.cores, type = "SOCK")
-  snow::clusterExport(cl, c("design.matrix", "y", "metadata", "alpha", "lambda", "lambda.seq", "family",
+  snow::clusterExport(cl, c("design.matrix", "y", "metadata", "alpha", "lambda.use", "lambda.seq", "family",
                             "GetCoefMatrix"),
                       envir = environment())
   source.log <- snow::parLapply(cl, 1:n.cores, function(i) library(glmnet))
   cfs.rand <- snow::parLapply(cl, 1:n.rand, function(i) {
     design.matrix.permute <- design.matrix[sample(1:nrow(design.matrix)),]
-    CalcGlmnet(design.matrix.permute, metadata, y, alpha, lambda, lambda.seq, family, ctrl)
+    CalcGlmnet(design.matrix.permute, metadata, y, alpha, lambda.use, lambda.seq, family, ctrl)
   })
   snow::stopCluster(cl)
 
