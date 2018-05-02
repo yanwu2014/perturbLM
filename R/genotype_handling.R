@@ -183,6 +183,8 @@ PadDesignMatrix <- function(X, row.names) {
 #' Filters out cells that belong to control genotype and other genotypes
 #'
 #' @param design.mat Design matrix
+#' @param ctrl Control genotype
+#'
 #' @return Filtered design matrix
 #' @export
 #'

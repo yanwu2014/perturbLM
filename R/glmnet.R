@@ -69,12 +69,12 @@ CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, lambda.seq
   } else {
     genotypes <- colnames(design.matrix)[colnames(design.matrix) != ctrl]
     cfs <- vapply(genotypes, function(g) {
-      ix <- rowSums(design.matrix[,c(g,ctrl)]) > 0
+      ix <- Matrix::rowSums(design.matrix[,c(g,ctrl)]) > 0
       x <- Matrix(cbind(design.matrix[ix, g], metadata[ix,]))
       mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.seq,
                              standardize = F)
-      return(GetCoefMatrix(mfit, lambda.use)[,2])
-    }, rep(0, nrow(y)))
+      return(t(GetCoefMatrix(mfit, lambda.use))[,2])
+    }, rep(0, ncol(y)))
     colnames(cfs) <- genotypes
   }
 

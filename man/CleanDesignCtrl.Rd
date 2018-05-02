@@ -8,6 +8,8 @@ CleanDesignCtrl(design.mat, ctrl)
 }
 \arguments{
 \item{design.mat}{Design matrix}
+
+\item{ctrl}{Control genotype}
 }
 \value{
 Filtered design matrix
