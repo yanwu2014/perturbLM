@@ -60,7 +60,6 @@ GetCoefMatrix <- compiler::cmpfun(GetCoefMatrix)
 #' @export
 #'
 CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, lambda.seq, family, ctrl = NULL) {
-  design.matrix <- as.matrix(design.matrix)
   if (is.null(ctrl)) {
     x <- Matrix(cbind(design.matrix, metadata))
     mfit <- glmnet::glmnet(x, y = y, family = family, alpha = alpha, lambda = lambda.seq,
@@ -69,13 +68,13 @@ CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, lambda.seq
     cfs <- cfs[,colnames(design.matrix)]
   } else {
     genotypes <- colnames(design.matrix)[colnames(design.matrix) != ctrl]
-    cfs <- sapply(genotypes, function(g) {
+    cfs <- vapply(genotypes, function(g) {
       ix <- rowSums(design.matrix[,c(g,ctrl)]) > 0
       x <- Matrix(cbind(design.matrix[ix, g], metadata[ix,]))
       mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.seq,
                              standardize = F)
       return(GetCoefMatrix(mfit, lambda.use)[,2])
-    })
+    }, rep(0, nrow(y)))
     colnames(cfs) <- genotypes
   }
 
@@ -135,7 +134,7 @@ CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda.use, lambd
 
   coefs.df <- .flatten_score_matrix(cfs, output.name, gene.covs, NULL)
   coefs.df <- .get_multi_bins(coefs.df, colnames(gene.covs), n.bins, use.quantiles, bin.group = T)
-  coefs.df <- .calc_emp_pvals(coefs.df, null.binned.dat, output.name = 'cf', n.cores = round(n.cores/4))
+  coefs.df <- .calc_emp_pvals(coefs.df, null.binned.dat, output.name = output.name, n.cores = round(n.cores/2))
   coefs.df <- coefs.df[order(coefs.df$p_val),]
 
   coefs.df[c("gene_avgs", "gene_vars", "bin.index")] <- NULL
