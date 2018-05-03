@@ -8,22 +8,6 @@
 NULL
 
 
-#' Calculate log-FC for each genotype against the control
-#'
-#' @param X Design matrix
-#' @param Y Gene expression
-#' @param ctrl Control genotype
-#'
-#' @return log-FC matrix
-#' @export
-#'
-CalcLogFC <- function(X, Y, ctrl, eps = 1e-3) {
-  mean.exprs <- apply(X, 2, function(ix) Matrix::colMeans(Y[ix == 1,]))
-  log.fc <- apply(mean.exprs, 2, function(x) log2((x + eps)/(mean.exprs[,ctrl] + eps)))
-  return(log.fc)
-}
-
-
 #' Extract coefficient matrix from a multigaussian glmnet object
 #'
 #' @param mfit Glmnet object (multigaussian)
@@ -216,9 +200,11 @@ CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda.use, lambd
   for (cov in all.covs) {
     bin.cov <- paste(cov, 'binned', sep = '_')
     if (use.quantiles) {
-      bin.cov.list[[bin.cov]] <- factor(lsr::quantileCut(scores.df[[cov]], n = n.bins[[cov]], labels = F, include.lowest = T))
+      bin.cov.list[[bin.cov]] <- factor(lsr::quantileCut(scores.df[[cov]], n = n.bins[[cov]],
+                                                         labels = F, include.lowest = T))
     } else {
-      bin.cov.list[[bin.cov]] <- factor(cut(scores.df[[cov]], breaks = n.bins[[cov]], labels = F, include.lowest = T))
+      bin.cov.list[[bin.cov]] <- factor(cut(scores.df[[cov]], breaks = n.bins[[cov]],
+                                            labels = F, include.lowest = T))
     }
   }
 

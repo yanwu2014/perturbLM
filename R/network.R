@@ -1,27 +1,3 @@
-
-#' Build Shared Nearest Neighbors matrix. From Seurat (https://github.com/satijalab/seurat)
-#'
-#' @param data.use Cells x features matrix to construct SNN with
-#' @param k.param Number of neighbors
-#' @param k.scale Neighborhood size to consider
-#' @param prune.SNN Min fraction of shared nearest neighbors to consider
-#' @return Sparse shared nearest neighbors matrix
-#'
-#' @importFrom FNN get.knn
-#' @import Seurat
-#' @export
-#'
-CalcSNN <- function(data.use, k.param = 10, prune.SNN = 1/15) {
-  n.cells <- nrow(data.use)
-
-  my.knn <- get.knn(data = data.use, k = min(k.param, n.cells - 1))
-  nn.ranked <- cbind(1:n.cells, my.knn$nn.index[, 1:(k.param - 1)])
-
-  w <- Seurat:::ComputeSNN(nn.ranked, prune.SNN)
-  return(w)
-}
-
-
 #' Calculate effect of perturbations on gene modules
 #'
 #' @param coefs.matrix Regression coefficients matrix
