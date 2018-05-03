@@ -4,10 +4,10 @@
 \alias{GenotypeClusterPvals}
 \title{Use Fisher's exact test to calculate enrichment for each genotype in each cluster}
 \usage{
-GenotypeClusterPvals(counts.df)
+GenotypeClusterPvals(genotype.cluster.counts)
 }
 \arguments{
-\item{counts.df}{Genotype x cluster counts matrix}
+\item{genotype.cluster.counts}{Genotype x cluster counts matrix}
 }
 \value{
 Genotype x cluster p-values matrix
