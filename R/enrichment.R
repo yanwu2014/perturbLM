@@ -178,7 +178,7 @@ GenotypeClusterPvals <- function(genotype.cluster.counts) {
       cont.table <- matrix(c(x, cluster.counts[[j]], genotype.counts[[i]] - x, n.cells), nrow = 2, byrow = T)
       p.enrich <- fisher.test(cont.table, alternative = "greater")$p.value
       p.deplete <- fisher.test(cont.table, alternative = "less")$p.value
-      if (p.enrich > p.deplete) {
+      if (p.enrich < p.deplete) {
         p.vals[i,j] <- p.enrich
       } else {
         p.vals[i,j] <- -1 * p.deplete
