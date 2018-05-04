@@ -16,11 +16,11 @@ NULL
 #' @export
 #'
 GetCoefMatrix <- function(mfit) {
-  cfs <- sapply(mfit$beta, function(x) {
+  cfs <- t(sapply(mfit$beta, function(x) {
     y <- as.numeric(x)
     names(y) <- rownames(x)
     return(y)
-  })
+  }))
   colnames(cfs) <- gsub('genotype', '', colnames(cfs))
   return(cfs)
 }
@@ -55,15 +55,17 @@ CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, family, ct
         g2 <- strsplit(g, split = ":")[[1]][[2]]
         ix <- Matrix::rowSums(design.matrix[,c(g, g1, g2, ctrl)]) > 0
         x <- Matrix(cbind(design.matrix[ix, c(g, g1, g2)], metadata[ix,]))
+        colnames(x) <- c(g, g1, g2, colnames(metadata))
         mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.use,
                                standardize = F)
       } else {
         ix <- Matrix::rowSums(design.matrix[,c(g,ctrl)]) > 0
         x <- Matrix(cbind(design.matrix[ix, g], metadata[ix,]))
+        colnames(x) <- c(g, colnames(metadata))
         mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.use,
                                standardize = F)
       }
-      return(GetCoefMatrix(mfit)[,1])
+      return(GetCoefMatrix(mfit)[,g])
     }, rep(0, ncol(y)))
     colnames(cfs) <- genotypes
   }
