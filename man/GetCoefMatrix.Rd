@@ -4,12 +4,10 @@
 \alias{GetCoefMatrix}
 \title{Extract coefficient matrix from a multigaussian glmnet object}
 \usage{
-GetCoefMatrix(mfit, lambda)
+GetCoefMatrix(mfit)
 }
 \arguments{
 \item{mfit}{Glmnet object (multigaussian)}
-
-\item{best.lambda}{Optimal lambda regularization parameter}
 }
 \value{
 Matrix of regression coefficients

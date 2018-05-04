@@ -11,7 +11,6 @@ NULL
 #' Extract coefficient matrix from a multigaussian glmnet object
 #'
 #' @param mfit Glmnet object (multigaussian)
-#' @param best.lambda Optimal lambda regularization parameter
 #'
 #' @return Matrix of regression coefficients
 #' @export

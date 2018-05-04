@@ -4,8 +4,8 @@
 \alias{CalcGlmnetPvals}
 \title{Calculate regression coefficients and p-values via permutation testing}
 \usage{
-CalcGlmnetPvals(design.matrix, metadata, y, alpha, lambda.use, lambda.seq,
-  family, ctrl = NULL, n.rand = 20, n.cores = 16, n.bins = 10,
+CalcGlmnetPvals(design.matrix, metadata, y, alpha, lambda.use, family,
+  ctrl = NULL, n.rand = 20, n.cores = 16, n.bins = 10,
   use.quantiles = T, output.name = "cf")
 }
 \arguments{
@@ -18,8 +18,6 @@ CalcGlmnetPvals(design.matrix, metadata, y, alpha, lambda.use, lambda.seq,
 \item{alpha}{Elasticnet ratio: (0 is fully L2, 1 fully is L1)}
 
 \item{lambda.use}{Coefficient regularization parameter}
-
-\item{lambda.seq}{Regularization sequence to follow}
 
 \item{family}{Regression family to use}
 
