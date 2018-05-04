@@ -53,10 +53,19 @@ CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, lambda.seq
   } else {
     genotypes <- colnames(design.matrix)[colnames(design.matrix) != ctrl]
     cfs <- vapply(genotypes, function(g) {
-      ix <- Matrix::rowSums(design.matrix[,c(g,ctrl)]) > 0
-      x <- Matrix(cbind(design.matrix[ix, g], metadata[ix,]))
-      mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.seq,
-                             standardize = F)
+      if (grepl(":", g)) {
+        g1 <- strsplit(g, split = ":")[[1]][[1]]
+        g2 <- strsplit(g, split = ":")[[1]][[2]]
+        ix <- Matrix::rowSums(design.matrix[,c(g, g1, g2, ctrl)]) > 0
+        x <- Matrix(cbind(design.matrix[ix, c(g, g1, g2)], metadata[ix,]))
+        mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.seq,
+                               standardize = F)
+      } else {
+        ix <- Matrix::rowSums(design.matrix[,c(g,ctrl)]) > 0
+        x <- Matrix(cbind(design.matrix[ix, g], metadata[ix,]))
+        mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.seq,
+                               standardize = F)
+      }
       return(t(GetCoefMatrix(mfit, lambda.use))[,2])
     }, rep(0, ncol(y)))
     colnames(cfs) <- genotypes
