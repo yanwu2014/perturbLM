@@ -16,9 +16,8 @@ NULL
 #' @return Matrix of regression coefficients
 #' @export
 #'
-GetCoefMatrix <- function(mfit, lambda) {
-  cfs <- glmnet::coef.glmnet(mfit, s = lambda)
-  cfs <- sapply(cfs, function(x) {
+GetCoefMatrix <- function(mfit) {
+  cfs <- sapply(mfit$beta, function(x) {
     y <- as.numeric(x)
     names(y) <- rownames(x)
     return(y)
@@ -36,19 +35,18 @@ GetCoefMatrix <- compiler::cmpfun(GetCoefMatrix)
 #' @param y Linear model response
 #' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
 #' @param lambda.use Coefficient regularization parameter
-#' @param lambda.seq Regularization sequence to follow
 #' @param family Regression family to use
 #' @param ctrl Control variable in the design matrix (optional)
 #'
 #' @return Matrix of regression coefficients
 #' @export
 #'
-CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, lambda.seq, family, ctrl = NULL) {
+CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, family, ctrl = NULL) {
   if (is.null(ctrl)) {
     x <- Matrix(cbind(design.matrix, metadata))
-    mfit <- glmnet::glmnet(x, y = y, family = family, alpha = alpha, lambda = lambda.seq,
+    mfit <- glmnet::glmnet(x, y = y, family = family, alpha = alpha, lambda = lambda.use,
                            standardize = F)
-    cfs <- GetCoefMatrix(mfit, lambda.use)
+    cfs <- GetCoefMatrix(mfit)
     cfs <- cfs[,colnames(design.matrix)]
   } else {
     genotypes <- colnames(design.matrix)[colnames(design.matrix) != ctrl]
@@ -58,15 +56,15 @@ CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, lambda.seq
         g2 <- strsplit(g, split = ":")[[1]][[2]]
         ix <- Matrix::rowSums(design.matrix[,c(g, g1, g2, ctrl)]) > 0
         x <- Matrix(cbind(design.matrix[ix, c(g, g1, g2)], metadata[ix,]))
-        mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.seq,
+        mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.use,
                                standardize = F)
       } else {
         ix <- Matrix::rowSums(design.matrix[,c(g,ctrl)]) > 0
         x <- Matrix(cbind(design.matrix[ix, g], metadata[ix,]))
-        mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.seq,
+        mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.use,
                                standardize = F)
       }
-      return(t(GetCoefMatrix(mfit, lambda.use))[,2])
+      return(GetCoefMatrix(mfit)[,1])
     }, rep(0, ncol(y)))
     colnames(cfs) <- genotypes
   }
@@ -83,7 +81,6 @@ CalcGlmnet <- compiler::cmpfun(CalcGlmnet)
 #' @param y Linear model response
 #' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
 #' @param lambda.use Coefficient regularization parameter
-#' @param lambda.seq Regularization sequence to follow
 #' @param family Regression family to use
 #' @param ctrl Control variable to compare against (optional)
 #' @param n.rand Number of permutations for calculating coefficient significance
@@ -99,24 +96,24 @@ CalcGlmnet <- compiler::cmpfun(CalcGlmnet)
 #' @importFrom data.table rbindlist
 #' @export
 #'
-CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda.use, lambda.seq, family,
-                            ctrl = NULL, n.rand = 20, n.cores = 16, n.bins = 10, use.quantiles = T,
-                            output.name = "cf") {
+CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda.use, family,
+                            ctrl = NULL, n.rand = 20, n.cores = 16, n.bins = 10,
+                            use.quantiles = T, output.name = "cf") {
 
   metadata <- as.matrix(metadata)
-  cfs <- CalcGlmnet(design.matrix, metadata, y, alpha, lambda.use, lambda.seq, family, ctrl)
+  cfs <- CalcGlmnet(design.matrix, metadata, y, alpha, lambda.use, family, ctrl)
 
   cl <- snow::makeCluster(n.cores, type = "SOCK")
-  snow::clusterExport(cl, c("design.matrix", "y", "metadata", "alpha", "lambda.use", "lambda.seq", "family",
-                            "GetCoefMatrix"),
-                      envir = environment())
+  snow::clusterExport(cl, c("design.matrix", "y", "metadata", "alpha", "lambda.use",
+                            "family", "GetCoefMatrix"), envir = environment())
   source.log <- snow::parLapply(cl, 1:n.cores, function(i) library(glmnet))
   cfs.rand <- snow::parLapply(cl, 1:n.rand, function(i) {
     design.matrix.permute <- design.matrix[sample(1:nrow(design.matrix)),]
-    CalcGlmnet(design.matrix.permute, metadata, y, alpha, lambda.use, lambda.seq, family, ctrl)
+    CalcGlmnet(design.matrix.permute, metadata, y, alpha, lambda.use, family, ctrl)
   })
   snow::stopCluster(cl)
 
+  y <- as.matrix(y)
   gene.covs <- data.frame(gene_avgs = colMeans(y), gene_vars = matrixStats::colVars(y))
   null.coefs.df <- lapply(cfs.rand, .flatten_score_matrix, output.name = output.name,
                           gene.covs = gene.covs, group.covs = NULL)
@@ -133,6 +130,7 @@ CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda.use, lambd
   coefs.df[c("gene_avgs", "gene_vars", "bin.index")] <- NULL
   return(coefs.df)
 }
+CalcGlmnetPvals <- compiler::cmpfun(CalcGlmnetPvals)
 
 
 #### Permutation testing and P-value matrix manipulation ####
