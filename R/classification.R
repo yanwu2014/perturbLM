@@ -1,4 +1,4 @@
-
+## Functions for classifying cells using a kNN classifier
 
 #' Map cells to a reference dataset using a kNN classifier
 #'
