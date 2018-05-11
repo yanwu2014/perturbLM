@@ -101,6 +101,7 @@ FisherEnrich <- function(marker.genes, genesets, n.background, correct = F) {
   results.df <- results.df[order(results.df$p.val),]
   return(results.df)
 }
+FisherEnrich <- compiler::cmpfun(FisherEnrich)
 
 
 #' Count over-enrichment for a list of gene markers
@@ -128,6 +129,7 @@ MultipleFisherEnrich <- function(markers.list, genesets, correct = F) {
   # enrich.df$FDR <- p.adjust(enrich.df$p.val, method = "BY")
   enrich.df[order(enrich.df$p.val),]
 }
+MultipleFisherEnrich <- compiler::cmpfun(MultipleFisherEnrich)
 
 
 #' GSEA over-enrichment test using liger
