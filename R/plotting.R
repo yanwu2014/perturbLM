@@ -97,10 +97,10 @@ PlotHexBin <- function(v, w, n.bins = 100) {
 #' gsea enrichment within a group, while the color encodes the Fisher enrichment
 #' cells within a group (blue is high).
 #'
-#' @param gsea.df
-#' @param fisher.df
-#' @param genesets.plot
-#' @param groups.plot
+#' @param gsea.df GSEA results
+#' @param fisher.df Fisher enrichment results
+#' @param genesets.plot Genesets to plot
+#' @param groups.plot Groups to plot
 #' @param cols.use Colors to plot, can pass a single character giving the name of
 #' a palette from \code{RColorBrewer::brewer.pal.info}
 #' @param col.max Maximum color value to set
