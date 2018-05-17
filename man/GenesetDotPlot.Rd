@@ -4,18 +4,21 @@
 \alias{GenesetDotPlot}
 \title{Dot plot visualization}
 \usage{
-GenesetDotPlot(gsea.df, fisher.df, genesets.plot, groups.plot,
-  cols.use = c("lightgrey", "blue"), col.max = 4, dot.scale = 4,
-  scale.by = "radius", scale.min = NA, scale.max = NA, plot.legend = F)
+GenesetDotPlot(data.plot.df, color.col, size.col, row.col = "Geneset",
+  col.col = "Group", cols.use = c("lightgrey", "blue"), col.max = 4,
+  dot.scale = 4, scale.by = "radius", scale.min = NA, scale.max = NA,
+  plot.legend = F)
 }
 \arguments{
-\item{gsea.df}{GSEA results}
+\item{data.plot.df}{Dataframe with Geneset, Group, and enrichment info}
 
-\item{fisher.df}{Fisher enrichment results}
+\item{color.col}{data.plot.df column to determine dot color}
 
-\item{genesets.plot}{Genesets to plot}
+\item{size.col}{data.plot.df column to determine dot size}
 
-\item{groups.plot}{Groups to plot}
+\item{row.col}{Plot rows (usually genesets)}
+
+\item{col.col}{Plot columns (usually groups)}
 
 \item{cols.use}{Colors to plot, can pass a single character giving the name of
 a palette from \code{RColorBrewer::brewer.pal.info}}

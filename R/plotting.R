@@ -97,10 +97,11 @@ PlotHexBin <- function(v, w, n.bins = 100) {
 #' gsea enrichment within a group, while the color encodes the Fisher enrichment
 #' cells within a group (blue is high).
 #'
-#' @param gsea.df GSEA results
-#' @param fisher.df Fisher enrichment results
-#' @param genesets.plot Genesets to plot
-#' @param groups.plot Groups to plot
+#' @param data.plot.df Dataframe with Geneset, Group, and enrichment info
+#' @param color.col data.plot.df column to determine dot color
+#' @param size.col data.plot.df column to determine dot size
+#' @param row.col Plot rows (usually genesets)
+#' @param col.col Plot columns (usually groups)
 #' @param cols.use Colors to plot, can pass a single character giving the name of
 #' a palette from \code{RColorBrewer::brewer.pal.info}
 #' @param col.max Maximum color value to set
@@ -118,36 +119,21 @@ PlotHexBin <- function(v, w, n.bins = 100) {
 #' @import ggplot2
 #' @export
 #'
-GenesetDotPlot <- function(gsea.df, fisher.df, genesets.plot, groups.plot, cols.use = c("lightgrey", "blue"),
-                           col.max = 4, dot.scale = 4, scale.by = 'radius', scale.min = NA, scale.max = NA,
-                           plot.legend = F) {
+GenesetDotPlot <- function(data.plot.df, color.col, size.col, row.col = "Geneset", col.col = "Group",
+                           cols.use = c("lightgrey", "blue"), col.max = 4, dot.scale = 4, scale.by = 'radius',
+                           scale.min = NA, scale.max = NA, plot.legend = F) {
   scale.func <- switch(
     EXPR = scale.by,
     'size' = scale_size,
     'radius' = scale_radius,
     stop("'scale.by' must be either 'size' or 'radius'")
   )
+  data.plot <- data.frame(Color = data.plot.df[[color.col]], Size = data.plot.df[[size.col]],
+                          Row = data.plot.df[[row.col]], Group = data.plot.df[[col.col]])
+  data.plot$Color[data.plot$Color > col.max] <- col.max
 
-  rownames(gsea.df) <- interaction(gsea.df$Group, gsea.df$genesets)
-  rownames(fisher.df) <- interaction(fisher.df$Group, fisher.df$genesets)
-
-  genesets.plot <- intersect(genesets.plot, unique(gsea.df$genesets))
-  genesets.plot <- intersect(genesets.plot, unique(fisher.df$genesets))
-
-  groups.plot <- intersect(groups.plot, unique(gsea.df$Group))
-  groups.plot <- intersect(groups.plot, unique(fisher.df$Group))
-
-  gsea.df <- subset(gsea.df, genesets %in% genesets.plot & Group %in% groups.plot)
-  fisher.df <- subset(fisher.df, genesets %in% genesets.plot & Group %in% groups.plot)
-  fisher.df <- fisher.df[rownames(gsea.df),]
-
-  data.to.plot <- data.frame(group = gsea.df$Group, geneset = gsea.df$genesets, gsea.lp = -log(gsea.df$p.val),
-                             fisher.lp = -log(fisher.df$p.val))
-  data.to.plot <- data.to.plot[order(as.character(data.to.plot$group)),]
-  data.to.plot$fisher.lp[data.to.plot$fisher.lp > col.max] <- col.max
-
-  p <- ggplot(data = data.to.plot, mapping = aes(x = group, y = geneset)) +
-    geom_point(mapping = aes(size = gsea.lp, color = fisher.lp)) +
+  p <- ggplot(data = data.plot, mapping = aes(x = Group, y = Geneset)) +
+    geom_point(mapping = aes(size = Size, color = Color)) +
     scale.func(range = c(0, dot.scale), limits = c(scale.min, scale.max)) +
     theme_classic() +
     theme(axis.title.x = element_blank(), axis.title.y = element_blank())
