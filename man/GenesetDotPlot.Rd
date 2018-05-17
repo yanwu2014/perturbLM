@@ -7,7 +7,7 @@
 GenesetDotPlot(data.plot.df, color.col, size.col, row.col = "Geneset",
   col.col = "Group", cols.use = c("lightgrey", "blue"), col.max = 4,
   dot.scale = 4, scale.by = "radius", scale.min = NA, scale.max = NA,
-  plot.legend = F)
+  plot.legend = F, font.size = 12)
 }
 \arguments{
 \item{data.plot.df}{Dataframe with Geneset, Group, and enrichment info}
@@ -34,6 +34,8 @@ a palette from \code{RColorBrewer::brewer.pal.info}}
 \item{scale.max}{Set upper limit for scaling, use NA for default}
 
 \item{plot.legend}{plots the legends}
+
+\item{font.size}{x and y axis font sizes}
 
 \item{dot.min}{The fraction of cells at which to draw the smallest dot
 (default is 0). All cell groups with less than this expressing the given

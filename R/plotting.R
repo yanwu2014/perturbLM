@@ -90,6 +90,97 @@ PlotHexBin <- function(v, w, n.bins = 100) {
 }
 
 
+#' Violin plot (adapted from Seurat)
+#'
+#' @param feature Feature name
+#' @param data Numeric vector of data to plot
+#' @param cell.ident Factor with cell identities (must be same length as data)
+#' @param do.sort Sort factor levels
+#' @param y.max Set max expression level
+#' @param size.x.use X axis text font size
+#' @param size.y.use Y axis text font size
+#' @param x.title X-axis title
+#' @param size.title.use X & Y axis title font sizes
+#' @param point.size.use Jitter point size
+#' @param cols.use Color palette to use
+#' @param y.log Log-scale gene expression
+#' @param x.lab.rot Rotate x-axis labels
+#' @param y.lab.rot Rotate y-axis labels
+#' @param legend.position Legend position ("right" or "left")
+#' @param remove.legend If true, hides legend
+#'
+#' @return A violin plot
+#' @import ggplot2
+#' @export
+#'
+PlotViolin <- function(feature, data, cell.ident, do.sort = F, y.max = NULL, size.x.use = 10,
+                       size.y.use = 10, x.title = "Group", size.title.use = 11, point.size.use = 1,
+                       cols.use = NULL, y.log = F, x.lab.rot = F, y.lab.rot = F, legend.position = "right",
+                       remove.legend = F) {
+  feature.name <- feature
+
+  data <- data.frame(data)
+  colnames(data) <- "feature"
+  feature <- "feature"
+  set.seed(seed = 42)
+  data$ident <- cell.ident
+  if (do.sort) {
+    data$ident <- factor(data$ident, levels = names(rev(sort(tapply(data[, feature], data$ident, mean)))))
+  }
+  if (y.log) {
+    noise <- rnorm(n = length(data[, feature]))/200
+    data[, feature] <- data[, feature] + 1
+  }
+  else {
+    noise <- rnorm(n = length(data[, feature]))/1e+05
+  }
+  if (all(data[, feature] == data[, feature][1])) {
+    warning(paste0("All cells have the same value of ", feature, "."))
+  }
+  else {
+    data[, feature] <- data[, feature] + noise
+  }
+
+  if(is.null(y.max)) {
+    y.max <- max(data[, feature])
+  }
+
+  plot <- ggplot(data = data, mapping = aes(x = factor(ident), y = feature)) +
+    geom_violin(scale = "width", adjust = 1, trim = TRUE, mapping = aes(fill = factor(ident))) +
+    guides(fill = guide_legend(title = NULL)) + geom_jitter(height = 0, size = point.size.use) +
+    xlab(x.title) + theme_classic() + ggtitle(feature) +
+    theme(plot.title = element_text(size = size.title.use, face = "bold"), legend.position = legend.position,
+          axis.title.x = element_text(face = "bold", colour = "#990000", size = size.y.use))
+
+  plot <- plot + ggtitle(feature.name)
+  if (y.log) {
+    plot <- plot + scale_y_log10()
+  }
+  else {
+    plot <- plot + ylim(min(data[, feature]), y.max)
+  }
+  if (y.log) {
+    plot <- plot + ylab(label = "Log Expression level")
+  }
+  else {
+    plot <- plot + ylab(label = "Expression level")
+  }
+  if (!is.null(x = cols.use)) {
+    plot <- plot + scale_fill_manual(values = cols.use)
+  }
+  if (x.lab.rot) {
+    plot <- plot + theme(axis.text.x = element_text(angle = 90, hjust = 1, size = size.x.use))
+  }
+  if (y.lab.rot) {
+    plot <- plot + theme(axis.text.x = element_text(angle = 90, size = size.y.use))
+  }
+  if (remove.legend) {
+    plot <- plot + theme(legend.position = "none")
+  }
+  return(plot)
+}
+
+
 #' Dot plot visualization
 #'
 #' Intuitive way of visualizing geneset enrichment across different
@@ -113,6 +204,7 @@ PlotHexBin <- function(v, w, n.bins = 100) {
 #' @param scale.min Set lower limit for scaling, use NA for default
 #' @param scale.max Set upper limit for scaling, use NA for default
 #' @param plot.legend plots the legends
+#' @param font.size x and y axis font sizes
 #'
 #' @return returns a ggplot2 object
 #'
@@ -121,7 +213,7 @@ PlotHexBin <- function(v, w, n.bins = 100) {
 #'
 GenesetDotPlot <- function(data.plot.df, color.col, size.col, row.col = "Geneset", col.col = "Group",
                            cols.use = c("lightgrey", "blue"), col.max = 4, dot.scale = 4, scale.by = 'radius',
-                           scale.min = NA, scale.max = NA, plot.legend = F) {
+                           scale.min = NA, scale.max = NA, plot.legend = F, font.size = 12) {
   scale.func <- switch(
     EXPR = scale.by,
     'size' = scale_size,
@@ -133,12 +225,13 @@ GenesetDotPlot <- function(data.plot.df, color.col, size.col, row.col = "Geneset
                           Row = data.plot.df[[row.col]], Column = data.plot.df[[col.col]])
   data.plot$Color[data.plot$Color > col.max] <- col.max
 
-  p <- ggplot(data = data.plot, mapping = aes(x = Row, y = Column)) +
+  p <- ggplot(data = data.plot, mapping = aes(x = Column, y = Row)) +
     geom_point(mapping = aes(size = Size, color = Color)) +
     scale.func(range = c(0, dot.scale), limits = c(scale.min, scale.max)) +
     theme_classic() +
-    theme(axis.title.x = element_blank(), axis.title.y = element_blank())
-  p <- p + theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+    theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+          axis.text.x = element_text(size = font.size, angle = 90),
+          axis.text.y = element_text(size = font.size))
 
   if (length(cols.use) == 1) {
     p <- p + scale_color_distiller(palette = cols.use)
