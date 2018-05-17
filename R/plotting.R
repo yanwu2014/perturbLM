@@ -128,11 +128,12 @@ GenesetDotPlot <- function(data.plot.df, color.col, size.col, row.col = "Geneset
     'radius' = scale_radius,
     stop("'scale.by' must be either 'size' or 'radius'")
   )
+
   data.plot <- data.frame(Color = data.plot.df[[color.col]], Size = data.plot.df[[size.col]],
-                          Row = data.plot.df[[row.col]], Group = data.plot.df[[col.col]])
+                          Row = data.plot.df[[row.col]], Column = data.plot.df[[col.col]])
   data.plot$Color[data.plot$Color > col.max] <- col.max
 
-  p <- ggplot(data = data.plot, mapping = aes(x = Group, y = Geneset)) +
+  p <- ggplot(data = data.plot, mapping = aes(x = Row, y = Column)) +
     geom_point(mapping = aes(size = Size, color = Color)) +
     scale.func(range = c(0, dot.scale), limits = c(scale.min, scale.max)) +
     theme_classic() +
