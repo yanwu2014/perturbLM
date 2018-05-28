@@ -243,3 +243,30 @@ GenesetDotPlot <- function(data.plot.df, color.col, size.col, row.col = "Geneset
   }
   return(p)
 }
+
+
+
+#' Make simple barplot from vector
+#'
+#' @param x Named numeric vector
+#' @param y.lim Max y-axis
+#' @param fill.color Bar color
+#'
+#' @return barplot
+#' @import ggplot2
+#' @export
+#'
+ggBarplot <- function(x, y.lim = NULL, fill.color = "tomato") {
+  barplot.df <- data.frame(Y = x, X = factor(names(x), levels = names(x)))
+
+  ggobj <- ggplot(data = barplot.df, aes(x = X, y = Y)) +
+    geom_bar(position = "dodge", stat = "identity", width = 0.8, fill = fill.color, color = "black") +
+    theme_classic() +
+    theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
+          axis.text.x = element_text(hjust = 1, size = 14, angle = 90, color = "black"),
+          axis.text.y = element_text(size = 12, color = "black"))
+  if(!is.null(y.lim)) {
+    ggobj <- ggobj + coord_cartesian(ylim = y.lim)
+  }
+  ggobj
+}
