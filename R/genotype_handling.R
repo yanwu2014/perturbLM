@@ -190,11 +190,12 @@ PadDesignMatrix <- function(X, row.names) {
 #'
 CleanDesignCtrl <- function(design.mat, ctrl) {
   ctrl.iy <- which(colnames(design.mat) == ctrl)
-  design.mat <- Matrix(apply(design.mat, 1, function(x) {
+  design.mat <- Matrix(t(apply(design.mat, 1, function(x) {
     if (x[[ctrl.iy]] == 1 && sum(x) > 1) { x[[ctrl.iy]] <- 0 }
     return(x)
-  }))
-  return(Matrix::t(design.mat))
+  })))
+  design.mat <- design.mat[,!(grepl(":", colnames(design.mat)) & grepl(ctrl, colnames(design.mat)))]
+  return(design.mat)
 }
 CleanDesignCtrl <- compiler::cmpfun(CleanDesignCtrl)
 
