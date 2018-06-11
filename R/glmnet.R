@@ -50,7 +50,7 @@ CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, family, ct
   } else {
     genotypes <- colnames(design.matrix)[colnames(design.matrix) != ctrl]
     cfs <- vapply(genotypes, function(g) {
-      if (grepl(":", g) && !grepl(ctrl, g)) {
+      if (grepl(":", g)) {
         g1 <- strsplit(g, split = ":")[[1]][[1]]
         g2 <- strsplit(g, split = ":")[[1]][[2]]
         ix <- Matrix::rowSums(design.matrix[,c(g, g1, g2, ctrl)]) > 0
