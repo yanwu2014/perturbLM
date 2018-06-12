@@ -15,6 +15,7 @@ CalcGeneModuleEffect <- function(coefs.matrix, gene.clusters.list, gene.module.m
   if (!is.null(gene.module.mapping)) {
     gene.modules <- gene.module.mapping$Description
     names(gene.modules) <- gene.module.mapping$Module
+    gene.clusters.list <- gene.clusters.list[names(gene.clusters.list) %in% names(gene.modules)]
     names(gene.clusters.list) <- sapply(names(gene.clusters.list), function(x) gene.modules[[x]])
   }
   gene.clusters <- FlattenGenotypeList(gene.clusters.list)
