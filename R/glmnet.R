@@ -27,6 +27,68 @@ GetCoefMatrix <- function(mfit) {
 GetCoefMatrix <- compiler::cmpfun(GetCoefMatrix)
 
 
+#' Calculate cluster enrichment with logistic regression
+#'
+#' @param design.mat Design matrix for regression
+#' @param clusters Cluster assignments
+#' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
+#' @param lambda.use Shrinkage parameter
+#'
+#' @return Matrix of regression coefficients
+#' @export
+#'
+CalcClusterEnrich <- function(design.mat, clusters, alpha, lambda.use) {
+  fit <- glmnet(design.mat, as.factor(clusters), family = "multinomial",
+                alpha = alpha, lambda = lambda.use)
+  GetCoefMatrix(fit)
+}
+CalcClusterEnrich <- compiler::cmpfun(CalcClusterEnrich)
+
+
+
+#' Calculate cluster enrichment with logistic regression
+#'
+#' @param design.mat Design matrix for regression
+#' @param cov.mat Matrix of covariates to regress out
+#' @param clusters Cluster assignments
+#' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
+#' @param lambda.use Shrinkage parameter
+#' @param n.rand Number of permutations
+#' @param n.cores Number of multiprocessing cores
+#'
+#' @return Matrix of regression coefficients
+#' @import snow
+#' @import glmnet
+#' @import abind
+#'
+#' @export
+#'
+CalcClusterEnrichPvals <- function(design.mat, cov.mat, clusters, alpha, lambda.use,
+                                   n.rand = 1000, n.cores = 8) {
+  design.mat <- as.matrix(design.mat); cov.mat <- as.matrix(cov.mat);
+  stopifnot(all(rownames(design.mat) == rownames(cov.mat)))
+
+  design.mat.full <- rbind(design.mat, cov.mat)
+  cfs <- CalcClusterEnrich(design.mat.full, clusters, alpha, lambda.use)
+
+  cl <- snow::makeCluster(n.cores, type = "SOCK")
+  snow::clusterExport(cl, c("design.mat", "cov.mat", "clusters", "alpha", "lambda.use",
+                            "GetCoefMatrix"), envir = environment())
+  source.log <- snow::parLapply(cl, 1:n.cores, function(i) library(glmnet))
+  cfs.rand <- snow::parLapply(cl, 1:n.rand, function(i) {
+    design.mat.permute <- design.mat[sample(1:nrow(design.mat)),]
+    design.mat.permute.full <- rbind(design.mat.permute, cov.mat)
+    CalcClusterEnrich(design.mat.permute.full, clusters, alpha, lambda.use)
+  })
+  snow::stopCluster(cl)
+  cfs.rand <- abind::abind(cfs.rand, along = 3)
+
+  .calc_pvals_cfs(cfs, cfs.rand)
+}
+CalcClusterEnrichPvals <- compiler::cmpfun(CalcClusterEnrichPvals)
+
+
+
 #' Calculate penalized linear regression with glmnet
 #'
 #' @param design.matrix Design matrix for regression

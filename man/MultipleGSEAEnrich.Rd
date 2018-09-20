@@ -5,7 +5,7 @@
 \title{GSEA over-enrichment test using liger}
 \usage{
 MultipleGSEAEnrich(scores.list, genesets, n.rand = 1000, n.cores = 1,
-  power = 1)
+  power = 1, quantile.threshold = min(100/n.rand, 0.1))
 }
 \arguments{
 \item{scores.list}{List of scores to test enrichment for}
@@ -17,6 +17,8 @@ MultipleGSEAEnrich(scores.list, genesets, n.rand = 1000, n.cores = 1,
 \item{n.cores}{Number of cores}
 
 \item{power}{GSEA exponent}
+
+\item{quantile.threshold}{Quantile threshold}
 }
 \value{
 Dataframe with GSEA enrichment

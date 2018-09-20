@@ -6,8 +6,8 @@
 \usage{
 GenesetDotPlot(data.plot.df, color.col, size.col, row.col = "Geneset",
   col.col = "Group", cols.use = c("lightgrey", "blue"), col.max = 4,
-  dot.scale = 4, scale.by = "radius", scale.min = NA, scale.max = NA,
-  plot.legend = F, font.size = 12)
+  dot.scale = 4, scale.by = "radius", scale.min = NA,
+  scale.max = NA, plot.legend = F, font.size = 12)
 }
 \arguments{
 \item{data.plot.df}{Dataframe with Geneset, Group, and enrichment info}

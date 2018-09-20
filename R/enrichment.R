@@ -139,17 +139,17 @@ MultipleFisherEnrich <- compiler::cmpfun(MultipleFisherEnrich)
 #' @param n.rand Number of randomizations
 #' @param n.cores Number of cores
 #' @param power GSEA exponent
+#' @param quantile.threshold Quantile threshold
 #'
 #' @return Dataframe with GSEA enrichment
 #' @import liger
 #' @export
 #'
-MultipleGSEAEnrich <- function(scores.list, genesets, n.rand = 1000, n.cores = 1, power = 1) {
-  require(liger)
-
+MultipleGSEAEnrich <- function(scores.list, genesets, n.rand = 1000, n.cores = 1, power = 1,
+                               quantile.threshold = min(100/n.rand, 0.1)) {
   enrich.list <- lapply(names(scores.list), function(g) {
     res <- bulk.gsea(scores.list[[g]], genesets, mc.cores = n.cores, n.rand = n.rand, power = power, rank = F,
-                     skip.qval.estimation = T)
+                     skip.qval.estimation = T, quantile.threshold = quantile.threshold)
     res$Group <- g; res$genesets <- rownames(res); res$q.val <- NULL;
     res
   })
