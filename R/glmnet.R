@@ -68,7 +68,7 @@ CalcClusterEnrichPvals <- function(design.mat, cov.mat, clusters, alpha, lambda.
   design.mat <- as.matrix(design.mat); cov.mat <- as.matrix(cov.mat);
   stopifnot(all(rownames(design.mat) == rownames(cov.mat)))
 
-  design.mat.full <- rbind(design.mat, cov.mat)
+  design.mat.full <- cbind(design.mat, cov.mat)
   cfs <- CalcClusterEnrich(design.mat.full, clusters, alpha, lambda.use)
 
   cl <- snow::makeCluster(n.cores, type = "SOCK")
@@ -77,7 +77,7 @@ CalcClusterEnrichPvals <- function(design.mat, cov.mat, clusters, alpha, lambda.
   source.log <- snow::parLapply(cl, 1:n.cores, function(i) library(glmnet))
   cfs.rand <- snow::parLapply(cl, 1:n.rand, function(i) {
     design.mat.permute <- design.mat[sample(1:nrow(design.mat)),]
-    design.mat.permute.full <- rbind(design.mat.permute, cov.mat)
+    design.mat.permute.full <- cbind(design.mat.permute, cov.mat)
     CalcClusterEnrich(design.mat.permute.full, clusters, alpha, lambda.use)
   })
   snow::stopCluster(cl)
