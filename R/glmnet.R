@@ -65,10 +65,14 @@ CalcClusterEnrich <- compiler::cmpfun(CalcClusterEnrich)
 #'
 CalcClusterEnrichPvals <- function(design.mat, cov.mat, clusters, alpha, lambda.use,
                                    n.rand = 1000, n.cores = 8) {
-  design.mat <- as.matrix(design.mat); cov.mat <- as.matrix(cov.mat);
-  stopifnot(all(rownames(design.mat) == rownames(cov.mat)))
+  design.mat <- as.matrix(design.mat)
 
+  if (!is.null(cov.mat)) {
+    cov.mat <- as.matrix(cov.mat);
+    stopifnot(all(rownames(design.mat) == rownames(cov.mat)))
+  }
   design.mat.full <- cbind(design.mat, cov.mat)
+
   cfs <- CalcClusterEnrich(design.mat.full, clusters, alpha, lambda.use)
 
   cl <- snow::makeCluster(n.cores, type = "SOCK")
@@ -83,7 +87,8 @@ CalcClusterEnrichPvals <- function(design.mat, cov.mat, clusters, alpha, lambda.
   snow::stopCluster(cl)
   cfs.rand <- abind::abind(cfs.rand, along = 3)
 
-  .calc_pvals_cfs(cfs, cfs.rand)
+  p.mat <- .calc_pvals_cfs(cfs, cfs.rand)
+  p.mat[,colnames(design.mat)]
 }
 CalcClusterEnrichPvals <- compiler::cmpfun(CalcClusterEnrichPvals)
 
@@ -207,13 +212,15 @@ CalcGlmnetPvals <- compiler::cmpfun(CalcGlmnetPvals)
   for (i in 1:nrow(cfs)) {
     for (j in 1:ncol(cfs)) {
       v <- sort(na.omit(cfs.rand[i,j,]))
-      v.pos <- v[v > 0]
+      v.pos <- v[v >= 0]
       v.neg <- v[v <= 0]
       b <- cfs[i,j]
       if (b > 0) {
         p.vals[i,j] <- calcPvalGreaterCpp(v.pos, b)
+      } else if (b < 0) {
+        p.vals[i,j] <- -1*calcPvalLessCpp(v.neg, b)
       } else {
-        p.vals[i,j] <- calcPvalLessCpp(v.neg, b)
+        p.vals[i,j] <- 1
       }
     }
   }
