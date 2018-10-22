@@ -212,13 +212,11 @@ CalcGlmnetPvals <- compiler::cmpfun(CalcGlmnetPvals)
   for (i in 1:nrow(cfs)) {
     for (j in 1:ncol(cfs)) {
       v <- sort(na.omit(cfs.rand[i,j,]))
-      v.pos <- v[v >= 0]
-      v.neg <- v[v <= 0]
       b <- cfs[i,j]
       if (b > 0) {
-        p.vals[i,j] <- calcPvalGreaterCpp(v.pos, b)
+        p.vals[i,j] <- calcPvalGreaterCpp(v, b)
       } else if (b < 0) {
-        p.vals[i,j] <- -1*calcPvalLessCpp(v.neg, b)
+        p.vals[i,j] <- -1*calcPvalLessCpp(v, b)
       } else {
         p.vals[i,j] <- 1
       }
