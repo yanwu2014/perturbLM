@@ -4,10 +4,12 @@
 \alias{MultipleFisherEnrich}
 \title{Count over-enrichment for a list of gene markers}
 \usage{
-MultipleFisherEnrich(markers.list, genesets, correct = F)
+MultipleFisherEnrich(markers.list, all.genes, genesets, correct = F)
 }
 \arguments{
 \item{markers.list}{List of top marker genes}
+
+\item{all.genes}{Vector of all background genes}
 
 \item{genesets}{List of genesets}
 

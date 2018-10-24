@@ -107,6 +107,7 @@ FisherEnrich <- compiler::cmpfun(FisherEnrich)
 #' Count over-enrichment for a list of gene markers
 #'
 #' @param markers.list List of top marker genes
+#' @param all.genes Vector of all background genes
 #' @param genesets List of genesets
 #' @param correct FDR correction
 #'
@@ -116,7 +117,7 @@ FisherEnrich <- compiler::cmpfun(FisherEnrich)
 #'
 #' @export
 #'
-MultipleFisherEnrich <- function(markers.list, genesets, correct = F) {
+MultipleFisherEnrich <- function(markers.list, all.genes, genesets, correct = F) {
   enrich.list <- lapply(names(markers.list), function(g) {
     res.df <- FisherEnrich(markers.list[[g]], genesets, length(all.genes), correct = correct)
     res.df$Group <- g; rownames(res.df) <- NULL;
