@@ -117,9 +117,6 @@ FisherEnrich <- compiler::cmpfun(FisherEnrich)
 #' @export
 #'
 MultipleFisherEnrich <- function(markers.list, genesets, correct = F) {
-  all.genes <- unique(unlist(markers.list, F, F))
-  genesets <- FilterGenesets(genesets, all.genes, min.size = 1, max.size = 10000)
-
   enrich.list <- lapply(names(markers.list), function(g) {
     res.df <- FisherEnrich(markers.list[[g]], genesets, length(all.genes), correct = correct)
     res.df$Group <- g; rownames(res.df) <- NULL;
