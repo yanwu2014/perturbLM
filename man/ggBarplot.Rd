@@ -4,7 +4,7 @@
 \alias{ggBarplot}
 \title{Make simple barplot from vector}
 \usage{
-ggBarplot(x, y.lim = NULL, fill.color = "tomato")
+ggBarplot(x, y.lim = NULL, fill.color = "lightgrey")
 }
 \arguments{
 \item{x}{Named numeric vector}

@@ -17,6 +17,7 @@
 #' @param show.corr Display pearson correlation in title
 #' @param box Force x and y vectors to be on the same scale
 #' @param alpha Data point transparency
+#' @param pt.color Colors to use for data points
 #' @return ggplot2 object with correlation plot
 #'
 #' @import ggplot2
@@ -25,25 +26,28 @@
 #'
 PlotCorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.use = NULL, use.label = F,
                             pts.label = NULL, font.size = 14, label.font.size = 4, pt.size = 1,
-                            show.corr = F, box = T, alpha = 1) {
+                            show.corr = F, box = T, alpha = 1, pt.color = "black") {
   stopifnot(names(x) == names(y))
+
   if (is.null(pts.use)) {
     pts.use <- names(x)
   }
   corr.use <- paste("R = ", round(cor(x[pts.use], y[pts.use]), 2))
 
-  gg.df <- data.frame(x[pts.use],y[pts.use])
-  gg.df$magnitude <- abs(x[pts.use]) + abs(y[pts.use])
-  gg.df$magnitude <- as.numeric(gg.df$magnitude)
-  gg.df$name <- names(x[pts.use])
+  if (length(pt.color) == 1) {
+    pt.color <- rep(pt.color, length(pts.use))
+    names(pt.color) <- names(x[pts.use])
+  }
 
+  gg.df <- data.frame(x = x[pts.use], y = y[pts.use], color = pt.color[pts.use])
+  gg.df$name <- names(x[pts.use])
 
   if (use.label) {
     gg.df$label <- pts.label
     gg.df$name[!pts.label] <- ""
-    colnames(gg.df) <- c("x", "y", 'magnitude', 'name', 'label')
+    colnames(gg.df) <- c("x", "y", "color", "name", "label")
   } else {
-    colnames(gg.df) <- c("x", "y", 'magnitude', 'name')
+    colnames(gg.df) <- c("x", "y", "color", 'name')
   }
 
   if (show.corr) {
@@ -55,18 +59,30 @@ PlotCorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.
   min.pt <- min(c(min(x[pts.use]), min(y[pts.use])))
   max.pt <- max(c(max(x[pts.use]), max(y[pts.use])))
 
-  ggobj <- ggplot(gg.df, aes(x, y)) + geom_point(aes(colour = magnitude), size = pt.size, alpha = alpha) +
-    scale_colour_gradient(low = 'grey', high = 'blue') + theme_classic() +
-    theme(legend.position="none", text = element_text(size = font.size)) +
-    xlab(x.lab) + ylab(y.lab) + ggtitle(main.title)
+  ggobj <- ggplot(gg.df, aes(x, y, colour = color)) +
+    geom_point(size = pt.size, alpha = alpha) +
+    theme_classic() +
+    theme(text = element_text(size = font.size), legend.title = element_blank()) +
+    xlab(x.lab) + ylab(y.lab) + ggtitle(main.title) +
+    guides(colour = guide_legend(override.aes = list(alpha = 1, size = 4)))
+
   if (box) {
     ggobj <- ggobj + xlim(c(min.pt, max.pt)) + ylim(c(min.pt, max.pt))
   }
+
   if (use.label) {
-    ggobj <- ggobj + geom_text_repel(aes(x, y, label = name), size = label.font.size)
+    ggobj <- ggobj + geom_text_repel(aes(x, y, label = name), size = label.font.size,
+                                     colour = "black")
   }
+
+  if (length(pt.color) == 1) {
+    ggobj <- ggobj + theme(legend.position = "none") + geom_point(colour = fill.color)
+  }
+
   return(ggobj)
 }
+
+
 
 #' Visualize correlation between two vectors with density plot.
 #' Useful for visualizing large datasets.
@@ -88,6 +104,7 @@ PlotHexBin <- function(v, w, n.bins = 100) {
     scale_fill_gradient(low = "deepskyblue3", high = "tomato3") + ggtitle(paste("R =", r))
   ggobj
 }
+
 
 
 #' Violin plot (adapted from Seurat)
@@ -181,6 +198,7 @@ PlotViolin <- function(feature, data, cell.ident, do.sort = F, y.max = NULL, siz
 }
 
 
+
 #' Dot plot visualization
 #'
 #' Intuitive way of visualizing geneset enrichment across different
@@ -256,15 +274,24 @@ GenesetDotPlot <- function(data.plot.df, color.col, size.col, row.col = "Geneset
 #' @import ggplot2
 #' @export
 #'
-ggBarplot <- function(x, y.lim = NULL, fill.color = "tomato") {
-  barplot.df <- data.frame(Y = x, X = factor(names(x), levels = names(x)))
+ggBarplot <- function(x, y.lim = NULL, fill.color = "lightgrey") {
+  barplot.df <- data.frame(Y = x, X = factor(names(x), levels = names(x)),
+                           color = fill.color)
 
-  ggobj <- ggplot(data = barplot.df, aes(x = X, y = Y)) +
-    geom_bar(position = "dodge", stat = "identity", width = 0.8, fill = fill.color, color = "black") +
-    theme_classic() +
+  if(length(fill.color) == 1) {
+    ggobj <- ggplot(data = barplot.df, aes(x = X, y = Y)) +
+      geom_bar(position = "dodge", stat = "identity", width = 0.8, color = "black", fill = fill.color)
+  } else {
+    ggobj <- ggplot(data = barplot.df, aes(x = X, y = Y, fill = color)) +
+      geom_bar(position = "dodge", stat = "identity", width = 0.8, color = "black")
+  }
+
+
+  ggobj <- ggobj + theme_classic() +
     theme(axis.title.x = element_blank(), axis.title.y = element_blank(),
           axis.text.x = element_text(hjust = 1, size = 14, angle = 90, color = "black"),
           axis.text.y = element_text(size = 12, color = "black"))
+
   if(!is.null(y.lim)) {
     ggobj <- ggobj + coord_cartesian(ylim = y.lim)
   }
