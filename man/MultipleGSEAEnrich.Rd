@@ -4,8 +4,14 @@
 \alias{MultipleGSEAEnrich}
 \title{GSEA over-enrichment test using liger}
 \usage{
-MultipleGSEAEnrich(scores.list, genesets, n.rand = 1000, n.cores = 1,
-  power = 1, quantile.threshold = min(100/n.rand, 0.1))
+MultipleGSEAEnrich(
+  scores.list,
+  genesets,
+  n.rand = 1000,
+  n.cores = 1,
+  power = 1,
+  quantile.threshold = min(100/n.rand, 0.1)
+)
 }
 \arguments{
 \item{scores.list}{List of scores to test enrichment for}

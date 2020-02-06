@@ -4,8 +4,12 @@
 \alias{DesignMatrixGenotypes}
 \title{Convert genotypes list to design matrix}
 \usage{
-DesignMatrixGenotypes(genotypes.list, max.genotypes = 2, min.cells = 5,
-  drop.cells = T)
+DesignMatrixGenotypes(
+  genotypes.list,
+  max.genotypes = 2,
+  min.cells = 5,
+  drop.cells = T
+)
 }
 \arguments{
 \item{genotypes.list}{Named list of cell vectors for each genotype}

@@ -26,7 +26,7 @@
 #'
 PlotCorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.use = NULL, use.label = F,
                             pts.label = NULL, font.size = 14, label.font.size = 4, pt.size = 1,
-                            show.corr = F, box = T, alpha = 1, pt.color = "black") {
+                            show.corr = F, box = T, alpha = 1, pt.color = NULL) {
   stopifnot(names(x) == names(y))
 
   if (is.null(pts.use)) {
@@ -34,24 +34,19 @@ PlotCorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.
   }
   corr.use <- paste("R = ", round(cor(x[pts.use], y[pts.use]), 2))
 
-  if (length(pt.color) == 1) {
-    pt.color <- rep(pt.color, length(pts.use))
-    names(pt.color) <- names(x[pts.use])
-  }
-
-  gg.df <- data.frame(x = x[pts.use], y = y[pts.use], color = pt.color[pts.use])
+  if (!is.null(pt.color)) gg.df <- data.frame(x = x[pts.use], y = y[pts.use], color = pt.color[pts.use])
+  else gg.df <- data.frame(x = x[pts.use], y = y[pts.use])
   gg.df$name <- names(x[pts.use])
+
 
   if (use.label) {
     gg.df$label <- pts.label
     gg.df$name[!pts.label] <- ""
-    colnames(gg.df) <- c("x", "y", "color", "name", "label")
-  } else {
-    colnames(gg.df) <- c("x", "y", "color", 'name')
   }
 
   if (show.corr) {
-    main.title <- paste(title, corr.use, sep = ": ")
+    if (is.null(title)) main.title <- corr.use
+    else main.title <- paste(title, corr.use, sep = ": ")
   } else {
     main.title <- title
   }
@@ -59,7 +54,10 @@ PlotCorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.
   min.pt <- min(c(min(x[pts.use]), min(y[pts.use])))
   max.pt <- max(c(max(x[pts.use]), max(y[pts.use])))
 
-  ggobj <- ggplot(gg.df, aes(x, y, colour = color)) +
+  if (!is.null(pt.color)) ggobj <- ggplot(gg.df, aes(x, y, colour = color))
+  else ggobj <- ggplot(gg.df, aes(x, y), color = "black")
+
+  ggobj <- ggobj +
     geom_point(size = pt.size, alpha = alpha) +
     theme_classic() +
     theme(text = element_text(size = font.size), legend.title = element_blank()) +
@@ -75,8 +73,8 @@ PlotCorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.
                                      colour = "black")
   }
 
-  if (length(pt.color) == 1) {
-    ggobj <- ggobj + theme(legend.position = "none") + geom_point(colour = fill.color)
+  if (is.null(pt.color)) {
+    ggobj <- ggobj + theme(legend.position = "none")
   }
 
   return(ggobj)

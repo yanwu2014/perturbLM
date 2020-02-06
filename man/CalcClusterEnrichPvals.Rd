@@ -4,8 +4,16 @@
 \alias{CalcClusterEnrichPvals}
 \title{Calculate cluster enrichment with logistic regression}
 \usage{
-CalcClusterEnrichPvals(design.mat, cov.mat, clusters, alpha, lambda.use,
-  n.rand = 1000, n.cores = 8)
+CalcClusterEnrichPvals(
+  design.mat,
+  cov.mat,
+  clusters,
+  alpha,
+  lambda.use,
+  n.rand = 1000,
+  n.cores = 8,
+  ctrl = NULL
+)
 }
 \arguments{
 \item{design.mat}{Design matrix for regression}
@@ -21,6 +29,8 @@ CalcClusterEnrichPvals(design.mat, cov.mat, clusters, alpha, lambda.use,
 \item{n.rand}{Number of permutations}
 
 \item{n.cores}{Number of multiprocessing cores}
+
+\item{ctrl}{Control genotype to compare all other genotypes to (e.g. NTC, AAVS)}
 }
 \value{
 Matrix of regression coefficients

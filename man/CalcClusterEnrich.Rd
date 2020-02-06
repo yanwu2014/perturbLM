@@ -4,16 +4,27 @@
 \alias{CalcClusterEnrich}
 \title{Calculate cluster enrichment with logistic regression}
 \usage{
-CalcClusterEnrich(design.mat, clusters, alpha, lambda.use)
+CalcClusterEnrich(
+  design.mat,
+  cov.mat,
+  clusters,
+  alpha,
+  lambda.use,
+  ctrl = NULL
+)
 }
 \arguments{
 \item{design.mat}{Design matrix for regression}
+
+\item{cov.mat}{Matrix of covariates to regress out}
 
 \item{clusters}{Cluster assignments}
 
 \item{alpha}{Elasticnet ratio: (0 is fully L2, 1 fully is L1)}
 
 \item{lambda.use}{Shrinkage parameter}
+
+\item{ctrl}{Control genotype to compare all other genotypes to (e.g. NTC, AAVS)}
 }
 \value{
 Matrix of regression coefficients

@@ -30,17 +30,43 @@ GetCoefMatrix <- compiler::cmpfun(GetCoefMatrix)
 #' Calculate cluster enrichment with logistic regression
 #'
 #' @param design.mat Design matrix for regression
+#' @param cov.mat Matrix of covariates to regress out
 #' @param clusters Cluster assignments
 #' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
 #' @param lambda.use Shrinkage parameter
+#' @param ctrl Control genotype to compare all other genotypes to (e.g. NTC, AAVS)
 #'
 #' @return Matrix of regression coefficients
 #' @export
 #'
-CalcClusterEnrich <- function(design.mat, clusters, alpha, lambda.use) {
-  fit <- glmnet(design.mat, as.factor(clusters), family = "multinomial",
-                alpha = alpha, lambda = lambda.use)
-  GetCoefMatrix(fit)
+CalcClusterEnrich <- function(design.mat, cov.mat, clusters, alpha, lambda.use, ctrl = NULL) {
+  clusters <- as.factor(clusters)
+  if(is.null(ctrl)) {
+    design.mat.full <- as.matrix(cbind(design.mat, cov.mat))
+    fit <- glmnet(design.mat.full, as.factor(clusters), family = "multinomial",
+                  alpha = alpha, lambda = lambda.use)
+    return(GetCoefMatrix(fit))
+  } else {
+    genotypes <- colnames(design.mat)[colnames(design.mat) != ctrl]
+    cfs <- vapply(genotypes, function(g) {
+      if (grepl(":", g)) {
+        g1 <- strsplit(g, split = ":")[[1]][[1]]
+        g2 <- strsplit(g, split = ":")[[1]][[2]]
+        ix <- rowSums(design.mat[,c(g, g1, g2, ctrl)]) > 0
+        design.mat.full <- as.matrix(cbind(design.mat[ix, c(g, g1, g2)], cov.mat[ix,]))
+        colnames(design.mat.full) <- c(g, g1, g2, colnames(cov.mat))
+        fit <- glmnet(design.mat.full, as.factor(clusters)[rownames(design.mat.full)], family = "multinomial",
+                      alpha = alpha, lambda = lambda.use)
+      } else {
+        ix <- rowSums(design.mat[,c(g, ctrl)]) > 0
+        design.mat.full <- as.matrix(cbind(design.mat[ix, g], cov.mat[ix,]))
+        colnames(design.mat.full) <- c(g, colnames(cov.mat))
+        fit <- glmnet(design.mat.full, as.factor(clusters)[rownames(design.mat.full)], family = "multinomial",
+                      alpha = alpha, lambda = lambda.use)
+      }
+      return(GetCoefMatrix(fit)[,g])
+    }, rep(0, nlevels(clusters)))
+  }
 }
 CalcClusterEnrich <- compiler::cmpfun(CalcClusterEnrich)
 
@@ -55,6 +81,7 @@ CalcClusterEnrich <- compiler::cmpfun(CalcClusterEnrich)
 #' @param lambda.use Shrinkage parameter
 #' @param n.rand Number of permutations
 #' @param n.cores Number of multiprocessing cores
+#' @param ctrl Control genotype to compare all other genotypes to (e.g. NTC, AAVS)
 #'
 #' @return Matrix of regression coefficients
 #' @import snow
@@ -64,7 +91,7 @@ CalcClusterEnrich <- compiler::cmpfun(CalcClusterEnrich)
 #' @export
 #'
 CalcClusterEnrichPvals <- function(design.mat, cov.mat, clusters, alpha, lambda.use,
-                                   n.rand = 1000, n.cores = 8) {
+                                   n.rand = 1000, n.cores = 8, ctrl = NULL) {
   design.mat <- as.matrix(design.mat)
 
   if (!is.null(cov.mat)) {
@@ -73,22 +100,21 @@ CalcClusterEnrichPvals <- function(design.mat, cov.mat, clusters, alpha, lambda.
   }
   design.mat.full <- cbind(design.mat, cov.mat)
 
-  cfs <- CalcClusterEnrich(design.mat.full, clusters, alpha, lambda.use)
+  cfs <- CalcClusterEnrich(design.mat, cov.mat, clusters, alpha, lambda.use, ctrl = ctrl)
 
   cl <- snow::makeCluster(n.cores, type = "SOCK")
-  snow::clusterExport(cl, c("design.mat", "cov.mat", "clusters", "alpha", "lambda.use",
+  snow::clusterExport(cl, c("design.mat", "cov.mat", "clusters", "alpha", "lambda.use", "ctrl",
                             "GetCoefMatrix"), envir = environment())
   source.log <- snow::parLapply(cl, 1:n.cores, function(i) library(glmnet))
   cfs.rand <- snow::parLapply(cl, 1:n.rand, function(i) {
     design.mat.permute <- design.mat[sample(1:nrow(design.mat)),]
-    design.mat.permute.full <- cbind(design.mat.permute, cov.mat)
-    CalcClusterEnrich(design.mat.permute.full, clusters, alpha, lambda.use)
+    rownames(design.mat.permute) <- rownames(design.mat)
+    CalcClusterEnrich(design.mat.permute, cov.mat, clusters, alpha, lambda.use, ctrl = ctrl)
   })
   snow::stopCluster(cl)
   cfs.rand <- abind::abind(cfs.rand, along = 3)
 
-  p.mat <- .calc_pvals_cfs(cfs, cfs.rand)
-  p.mat[,colnames(design.mat)]
+  return(.calc_pvals_cfs(cfs, cfs.rand))
 }
 CalcClusterEnrichPvals <- compiler::cmpfun(CalcClusterEnrichPvals)
 

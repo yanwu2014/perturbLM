@@ -4,11 +4,24 @@
 \alias{PlotViolin}
 \title{Violin plot (adapted from Seurat)}
 \usage{
-PlotViolin(feature, data, cell.ident, do.sort = F, y.max = NULL,
-  size.x.use = 10, size.y.use = 10, x.title = "Group",
-  size.title.use = 11, point.size.use = 1, cols.use = NULL,
-  y.log = F, x.lab.rot = F, y.lab.rot = F,
-  legend.position = "right", remove.legend = F)
+PlotViolin(
+  feature,
+  data,
+  cell.ident,
+  do.sort = F,
+  y.max = NULL,
+  size.x.use = 10,
+  size.y.use = 10,
+  x.title = "Group",
+  size.title.use = 11,
+  point.size.use = 1,
+  cols.use = NULL,
+  y.log = F,
+  x.lab.rot = F,
+  y.lab.rot = F,
+  legend.position = "right",
+  remove.legend = F
+)
 }
 \arguments{
 \item{feature}{Feature name}

@@ -4,10 +4,23 @@
 \alias{PlotCorrelation}
 \title{Visualize correlation between two vectors}
 \usage{
-PlotCorrelation(x, y, x.lab = NULL, y.lab = NULL, title = NULL,
-  pts.use = NULL, use.label = F, pts.label = NULL, font.size = 14,
-  label.font.size = 4, pt.size = 1, show.corr = F, box = T,
-  alpha = 1, pt.color = NULL)
+PlotCorrelation(
+  x,
+  y,
+  x.lab = NULL,
+  y.lab = NULL,
+  title = NULL,
+  pts.use = NULL,
+  use.label = F,
+  pts.label = NULL,
+  font.size = 14,
+  label.font.size = 4,
+  pt.size = 1,
+  show.corr = F,
+  box = T,
+  alpha = 1,
+  pt.color = NULL
+)
 }
 \arguments{
 \item{x}{X-axis vector}

@@ -4,9 +4,20 @@
 \alias{CalcGlmnetPvals}
 \title{Calculate regression coefficients and p-values via permutation testing}
 \usage{
-CalcGlmnetPvals(design.matrix, metadata, y, alpha, lambda.use, family,
-  ctrl = NULL, n.rand = 20, n.cores = 16, n.bins = 10,
-  use.quantiles = T, output.name = "cf")
+CalcGlmnetPvals(
+  design.matrix,
+  metadata,
+  y,
+  alpha,
+  lambda.use,
+  family,
+  ctrl = NULL,
+  n.rand = 20,
+  n.cores = 16,
+  n.bins = 10,
+  use.quantiles = T,
+  output.name = "cf"
+)
 }
 \arguments{
 \item{design.matrix}{Design matrix for regression}

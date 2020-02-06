@@ -4,8 +4,12 @@
 \alias{CalcGeneModuleEffect}
 \title{Calculate effect of perturbations on gene modules}
 \usage{
-CalcGeneModuleEffect(coefs.matrix, gene.clusters.list,
-  gene.module.mapping = NULL, min.coef = 0.025)
+CalcGeneModuleEffect(
+  coefs.matrix,
+  gene.clusters.list,
+  gene.module.mapping = NULL,
+  min.coef = 0.025
+)
 }
 \arguments{
 \item{coefs.matrix}{Regression coefficients matrix}

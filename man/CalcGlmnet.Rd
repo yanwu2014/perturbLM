@@ -4,8 +4,7 @@
 \alias{CalcGlmnet}
 \title{Calculate penalized linear regression with glmnet}
 \usage{
-CalcGlmnet(design.matrix, metadata, y, alpha, lambda.use, family,
-  ctrl = NULL)
+CalcGlmnet(design.matrix, metadata, y, alpha, lambda.use, family, ctrl = NULL)
 }
 \arguments{
 \item{design.matrix}{Design matrix for regression}
