@@ -53,14 +53,14 @@ CalcClusterEnrich <- function(design.mat, cov.mat, clusters, alpha, lambda.use, 
         g1 <- strsplit(g, split = ":")[[1]][[1]]
         g2 <- strsplit(g, split = ":")[[1]][[2]]
         ix <- rowSums(design.mat[,c(g, g1, g2, ctrl)]) > 0
-        design.mat.full <- as.matrix(cbind(design.mat[ix, c(g, g1, g2)], cov.mat[ix,]))
-        colnames(design.mat.full) <- c(g, g1, g2, colnames(cov.mat))
+        design.mat.full <- as.matrix(cbind(design.mat[ix, c(g, g1, g2, ctrl)], cov.mat[ix,]))
+        colnames(design.mat.full) <- c(g, g1, g2, ctrl, colnames(cov.mat))
         fit <- glmnet(design.mat.full, as.factor(clusters)[rownames(design.mat.full)], family = "multinomial",
                       alpha = alpha, lambda = lambda.use)
       } else {
         ix <- rowSums(design.mat[,c(g, ctrl)]) > 0
-        design.mat.full <- as.matrix(cbind(design.mat[ix, g], cov.mat[ix,]))
-        colnames(design.mat.full) <- c(g, colnames(cov.mat))
+        design.mat.full <- as.matrix(cbind(design.mat[ix, c(g, ctrl)], cov.mat[ix,]))
+        colnames(design.mat.full) <- c(g, ctrl, colnames(cov.mat))
         fit <- glmnet(design.mat.full, as.factor(clusters)[rownames(design.mat.full)], family = "multinomial",
                       alpha = alpha, lambda = lambda.use)
       }
