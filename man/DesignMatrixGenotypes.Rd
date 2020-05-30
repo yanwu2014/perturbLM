@@ -4,21 +4,14 @@
 \alias{DesignMatrixGenotypes}
 \title{Convert genotypes list to design matrix}
 \usage{
-DesignMatrixGenotypes(
-  genotypes.list,
-  max.genotypes = 2,
-  min.cells = 5,
-  drop.cells = T
-)
+DesignMatrixGenotypes(genotypes.list, max.genotypes = 2, min.cells = 10)
 }
 \arguments{
 \item{genotypes.list}{Named list of cell vectors for each genotype}
 
 \item{max.genotypes}{Maximum number of genotypes per cell}
 
-\item{min.cells}{Minumum number of cells per genotype}
-
-\item{drop.cells}{Drop cells in genotypes that are filtered out}
+\item{min.cells}{Minumum number of cells per genotype, including combo genotypes}
 }
 \value{
 Sparse binary matrix where rows are cells, and columns are genotypes. 1 means the cell received the genotype.

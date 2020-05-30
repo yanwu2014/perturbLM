@@ -164,7 +164,7 @@ MultipleGSEAEnrich <- function(scores.list, genesets, n.rand = 1000, n.cores = 1
 #'
 #' @export
 #'
-GenotypeClusterPvals <- function(genotype.cluster.counts) {
+GenotypeClusterFisher <- function(genotype.cluster.counts) {
   cluster.counts <- colSums(genotype.cluster.counts)
   genotype.counts <- rowSums(genotype.cluster.counts)
   n.cells <- sum(cluster.counts)
@@ -190,5 +190,4 @@ GenotypeClusterPvals <- function(genotype.cluster.counts) {
 
   return(p.vals)
 }
-GenotypeClusterPvals <- compiler::cmpfun(GenotypeClusterPvals)
 
