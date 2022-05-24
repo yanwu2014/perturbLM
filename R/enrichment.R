@@ -30,18 +30,11 @@ LoadGenesets <- function(file.name) {
 #'
 FilterGenesets <- function(genesets, gene.names, min.size = 5, max.size = 500) {
   genesets <- lapply(genesets, function (x) return(x[x %in% gene.names]))
-  genesets <- .clean_genesets(genesets, min.size = min.size, max.size = max.size)
-  return(genesets)
-}
-
-
-## Helper function for filtering genesets
-.clean_genesets <- function(genesets, min.size = 5, max.size = 500, annot = FALSE) {
-  genesets <- as.list(genesets)
   size <- unlist(lapply(genesets, length))
   genesets <- genesets[size > min.size & size < max.size]
   return(genesets)
 }
+
 
 
 #' Write genesets from list to gmt file
@@ -154,40 +147,5 @@ MultipleGSEAEnrich <- function(scores.list, genesets, n.rand = 1000, n.cores = 1
   enrich.df <- do.call("rbind", enrich.list); rownames(enrich.df) <- NULL;
   enrich.df$FDR <- p.adjust(enrich.df$p.val, method = "BY")
   enrich.df[order(enrich.df$p.val),]
-}
-
-
-#' Use Fisher's exact test to calculate enrichment for each genotype in each cluster
-#'
-#' @param genotype.cluster.counts Genotype x cluster counts matrix
-#' @return Genotype x cluster p-values matrix
-#'
-#' @export
-#'
-GenotypeClusterFisher <- function(genotype.cluster.counts) {
-  cluster.counts <- colSums(genotype.cluster.counts)
-  genotype.counts <- rowSums(genotype.cluster.counts)
-  n.cells <- sum(cluster.counts)
-
-  p.vals <- matrix(1, nrow = nrow(genotype.cluster.counts), ncol = ncol(genotype.cluster.counts),
-                   dimnames = list(rownames(genotype.cluster.counts), colnames(genotype.cluster.counts)))
-
-  for(i in 1:nrow(genotype.cluster.counts)) {
-    for(j in 1:ncol(genotype.cluster.counts)) {
-      x <- genotype.cluster.counts[i,j] - 1
-      if (x < 0) { x <- 0; }
-      cont.table <- matrix(c(x, cluster.counts[[j]], genotype.counts[[i]] - x, n.cells), nrow = 2, byrow = T)
-      p.enrich <- fisher.test(cont.table, alternative = "greater")$p.value
-      p.deplete <- fisher.test(cont.table, alternative = "less")$p.value
-      if (p.enrich < p.deplete) {
-        p.vals[i,j] <- p.enrich
-      } else {
-        p.vals[i,j] <- -1 * p.deplete
-      }
-
-    }
-  }
-
-  return(p.vals)
 }
 

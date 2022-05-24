@@ -1,8 +1,8 @@
 Package: perturbLM
 Type: Package
-Title: Analyzes effect of genetic perturbations on the transcriptome using a linear model.
+Title: Analyzes effect of genetic perturbations on the transcriptome using linear models.
        Based on the MIMOSCA python package (https://github.com/asncd/MIMOSCA)
-Version: 0.2.2
+Version: 0.3.0
 Author: Yan Wu
 Maintainer: Yan Wu <yauwning@gmail.com>
 Description: 
@@ -23,13 +23,12 @@ Imports:
       snow,
       lsr,
       qvalue,
-      Seurat,
       data.table,
       FNN,
       ggplot2,
       matrixStats,
       compiler,
-      FNN,
       liger,
-      abind
-RoxygenNote: 7.1.0
+      abind,
+      reshape2
+RoxygenNote: 7.1.2
