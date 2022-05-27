@@ -8,6 +8,83 @@
 NULL
 
 
+#' Run cross validation for both alpha and lambda
+#'
+#' @param x Design matrix + covariates matrix
+#' @param y Expression response
+#' @param alpha.seq Sequence of alpha values to test
+#' @param plot Plot cross validation results (default: True)
+#' @param n.cores Number of cores to use (default: 4)
+#' @param family GLM family to use for elasticnet (default: mgaussian)
+#' @param nlambda Number of lambda values to test (default: 10)
+#' @param lambda.min.ratio Sets the minimum lambda value to test (default: 1e-6)
+#' @param nfolds Number of folds to cross validate over (default: 5)
+#'
+#' @return List of results containing cross validation objects (cv.list),
+#'         cross validation summary stats (cv.summary),
+#'         and the optimal lambda/alpha combo (alpha.min, lambda.min)
+#' @import snow
+#' @import glmnet
+#' @import ggplot2
+#' @export
+#'
+RunCrossValidation <- function(x,
+                               y,
+                               alpha.seq = seq(0, 1, by = 0.2),
+                               plot = T,
+                               n.cores = 4,
+                               family = "mgaussian",
+                               nlambda = 25,
+                               lambda.min.ratio = 1e-6,
+                               nfolds = 5) {
+  require(snow)
+
+  cl <- snow::makeCluster(n.cores, type = "SOCK")
+  snow::clusterExport(cl, c("x", "y", "family", "nlambda", "lambda.min.ratio",
+                            "nfolds"), envir = environment())
+  invisible(snow::parLapply(cl, 1:n.cores, function(i) library(glmnet)))
+  cv.list <- snow::parLapply(cl, alpha.seq, function(a) {
+    cv.glmnet(x = x,
+              y = as.matrix(y),
+              alpha = a,
+              family = family,
+              nlambda = nlambda,
+              lambda.min.ratio = lambda.min.ratio,
+              nfolds = nfolds,
+              standardize = F)
+  })
+  snow::stopCluster(cl)
+
+  cv_df <- lapply(1:length(alpha.seq), function(i) {
+    data.frame(error = cv.list[[i]]$cvm,
+               lambda = cv.list[[i]]$lambda,
+               log.lambda = log(cv.list[[i]]$lambda),
+               alpha = alpha.seq[[i]])
+
+  })
+  cv_df <- do.call(rbind, cv_df)
+  cv_df$alpha_fac <- as.factor(cv_df$alpha)
+  rownames(cv_df) <- NULL
+
+  if (plot) {
+    ggplot(data=cv_df, aes(x=log.lambda, y=error, color=alpha_fac)) +
+      geom_line() +
+      geom_point() +
+      theme_classic()
+  }
+
+  alpha.min <- cv_df[which.min(cv_df$error), "alpha"]
+  lambda.min <- cv_df[which.min(cv_df$error), "lambda"]
+  print(paste0("Best alpha: ", alpha.min))
+  print(paste0("Best lambda: ", lambda.min))
+
+  list(cv.list = cv.list,
+       cv.summary = cv_df,
+       alpha.min = alpha.min,
+       lambda.min = lambda.min)
+}
+
+
 #' Extract coefficient matrix from a multigaussian glmnet object
 #'
 #' @param mfit Glmnet object (multigaussian)

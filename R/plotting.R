@@ -9,8 +9,7 @@
 #' @param y.lab Y-axis title
 #' @param title Plot title
 #' @param pts.use Data points to plot
-#' @param use.label Label data points
-#' @param pts.label Data points to label
+#' @param labels Data points to label
 #' @param font.size Axis and plot title font size
 #' @param label.font.size Size to use for data point labels
 #' @param pt.size Data point size
@@ -21,55 +20,70 @@
 #' @return ggplot2 object with correlation plot
 #'
 #' @import ggplot2
-#' @importFrom ggrepel geom_text_repel
+#' @import ggrepel
+#' @import ggpubr
 #' @export
 #'
-PlotCorrelation <- function(x, y, x.lab = NULL, y.lab = NULL, title = NULL, pts.use = NULL, use.label = F,
-                            pts.label = NULL, font.size = 14, label.font.size = 4, pt.size = 1,
-                            show.corr = F, box = T, alpha = 1, pt.color = NULL) {
-  stopifnot(names(x) == names(y))
+PlotCorrelation <- function(x,
+                            y,
+                            x.lab = NULL,
+                            y.lab = NULL,
+                            title = NULL,
+                            pts.use = NULL,
+                            labels = NULL,
+                            font.size = 14,
+                            label.font.size = 4,
+                            pt.size = 1,
+                            x.lim = NULL,
+                            y.lim = NULL,
+                            show.corr = F,
+                            alpha = 1,
+                            pt.color = NULL)
+{
 
   if (is.null(pts.use)) {
-    pts.use <- names(x)
-  }
-  corr.use <- paste("R = ", round(cor(x[pts.use], y[pts.use]), 2))
-
-  if (!is.null(pt.color)) gg.df <- data.frame(x = x[pts.use], y = y[pts.use], color = pt.color[pts.use])
-  else gg.df <- data.frame(x = x[pts.use], y = y[pts.use])
-  gg.df$name <- names(x[pts.use])
-
-
-  if (use.label) {
-    gg.df$label <- pts.label
-    gg.df$name[!pts.label] <- ""
+    pts.use <- intersect(names(x), names(y))
   }
 
-  if (show.corr) {
-    if (is.null(title)) main.title <- corr.use
-    else main.title <- paste(title, corr.use, sep = ": ")
-  } else {
-    main.title <- title
+  if (!is.null(pt.color)) {
+    gg.df <- data.frame(x = x[pts.use], y = y[pts.use], color = pt.color[pts.use])
+  }
+  else {
+    gg.df <- data.frame(x = x[pts.use], y = y[pts.use])
   }
 
-  min.pt <- min(c(min(x[pts.use]), min(y[pts.use])))
-  max.pt <- max(c(max(x[pts.use]), max(y[pts.use])))
+  rownames(gg.df) <- pts.use
+  gg.df$label <- ""
+  gg.df[labels, "label"] <- labels
 
-  if (!is.null(pt.color)) ggobj <- ggplot(gg.df, aes(x, y, colour = color))
-  else ggobj <- ggplot(gg.df, aes(x, y), color = "black")
+  if (!is.null(pt.color)) {
+    ggobj <- ggplot(gg.df, aes(x, y, colour = color))
+  }
+  else {
+    ggobj <- ggplot(gg.df, aes(x, y), color = "black")
+  }
 
   ggobj <- ggobj +
     geom_point(size = pt.size, alpha = alpha) +
     theme_classic() +
     theme(text = element_text(size = font.size), legend.title = element_blank()) +
-    xlab(x.lab) + ylab(y.lab) + ggtitle(main.title) +
+    xlab(x.lab) + ylab(y.lab) + ggtitle(title) +
     guides(colour = guide_legend(override.aes = list(alpha = 1, size = 4)))
 
-  if (box) {
-    ggobj <- ggobj + xlim(c(min.pt, max.pt)) + ylim(c(min.pt, max.pt))
+  if (show.corr) {
+    ggobj <- ggobj + stat_cor(method = "pearson")
   }
 
-  if (use.label) {
-    ggobj <- ggobj + geom_text_repel(aes(x, y, label = name), size = label.font.size,
+  if (!is.null(x.lim)) {
+    ggobj <- ggobj + xlim(x.lim)
+  }
+
+  if (!is.null(y.lim)) {
+    ggobj <- ggobj + xlim(y.lim)
+  }
+
+  if (!is.null(labels)) {
+    ggobj <- ggobj + geom_text_repel(aes(x, y, label = label), size = label.font.size,
                                      colour = "black")
   }
 
@@ -213,4 +227,40 @@ PlotClusterComp <- function(group.list,
   }
 
   return(p)
+}
+
+
+#' Plot predicted values vs residuals to assess data linearity and heteroskedasticity
+#' This requires densifying the expression matrices so it might be wise to only plot a subset of cells/genes.
+#'
+#' @param x Design matrix + covariates matrix
+#' @param y Expression response
+#' @param mfit Fitted glmnet model
+#' @param nonzero.only Only plot residuals vs predicted for nonzero values
+#'
+#' @return KDE density plot of residuals vs predicted
+#' @import glmnet
+#' @export
+#'
+PlotResiduals <- function(x, y, mfit, nonzero.only = T) {
+  y.pred <- predict(mfit, newx = x)
+  y.pred <- as(pred.counts[,,1], "dgCMatrix")
+  res <- y - y.pred
+
+  df_temp <- data.frame(y_pred = as.vector(as.matrix(y.pred)),
+                        res = as.vector(as.matrix(res)),
+                        y = as.vector(y))
+  if (nonzero.only) {
+    df_temp <- subset(df_temp, y > 0)
+  }
+
+  graphics::smoothScatter(x = df_temp$y_pred,
+                          y = df_temp$res,
+                          xlab = "Predicted",
+                          ylab = "Residuals",
+                          nbin = 512,
+                          nrpoints = 500,
+                          pch = 20,
+                          cex = 0.2,
+                          col = "red")
 }

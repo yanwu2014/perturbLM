@@ -11,13 +11,13 @@ PlotCorrelation(
   y.lab = NULL,
   title = NULL,
   pts.use = NULL,
-  use.label = F,
-  pts.label = NULL,
+  labels = NULL,
   font.size = 14,
   label.font.size = 4,
   pt.size = 1,
+  x.lim = NULL,
+  y.lim = NULL,
   show.corr = F,
-  box = T,
   alpha = 1,
   pt.color = NULL
 )
@@ -35,9 +35,7 @@ PlotCorrelation(
 
 \item{pts.use}{Data points to plot}
 
-\item{use.label}{Label data points}
-
-\item{pts.label}{Data points to label}
+\item{labels}{Data points to label}
 
 \item{font.size}{Axis and plot title font size}
 
@@ -47,11 +45,11 @@ PlotCorrelation(
 
 \item{show.corr}{Display pearson correlation in title}
 
-\item{box}{Force x and y vectors to be on the same scale}
-
 \item{alpha}{Data point transparency}
 
 \item{pt.color}{Colors to use for data points}
+
+\item{box}{Force x and y vectors to be on the same scale}
 }
 \value{
 ggplot2 object with correlation plot

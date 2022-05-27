@@ -169,6 +169,7 @@ MergeGroupLists <- function(group.list.1, group.list.2) {
   return(group.list)
 }
 
+
 #' Convert genotypes list to design matrix
 #'
 #' @param genotypes.list Named list of cell vectors for each genotype
@@ -182,6 +183,9 @@ MergeGroupLists <- function(group.list.1, group.list.2) {
 #' @export
 #'
 DesignMatrixGenotypes <- function(genotypes.list, max.genotypes = 2, min.cells = 10) {
+  .Deprecated("DesignMatrixGenotypes", package="perturbLM",
+              msg = "Use CreateDesignMatrix",
+              old = as.character(sys.call(sys.parent()))[1L])
   cell.names <- unique(unlist(genotypes.list, F, F))
   single.genotypes <- names(genotypes.list)
 
@@ -219,9 +223,61 @@ DesignMatrixGenotypes <- function(genotypes.list, max.genotypes = 2, min.cells =
   design.mat <- design.mat[,Matrix::colSums(design.mat) > min.cells]
   return(as(design.mat, "dgCMatrix"))
 }
-DesignMatrixGenotypes <- compiler::cmpfun(DesignMatrixGenotypes)
 
 
+#' Convert perturbation dictionary to design matrix
+#'
+#' @param group.list Named list of cell vectors for each perturbation
+#' @param max.groups Maximum number of perturbations per cell
+#' @param min.cells Minumum number of cells per perturbation, including combo perturbations
+#'
+#' @return Sparse binary matrix where rows are cells, and columns are perturbation. 1 means the cell received the perturbation.
+#'
+#' @import Matrix
+#' @import hash
+#' @export
+#'
+CreateDesignMatrix <- function(group.list, max.groups = 3, min.cells = 10) {
+  cell.names <- unique(unlist(group.list, F, F))
+  single.groups <- names(group.list)
+
+  single.mat <- Matrix::Matrix(0, length(cell.names), length(single.groups),
+                               dimnames = list(cell.names, single.groups))
+  for (i in 1:ncol(single.mat)) {
+    single.mat[group.list[[i]], i] <- 1
+  }
+  single.mat <- single.mat[Matrix::rowSums(single.mat) > 0, ]
+
+  combo.rows <- single.mat[Matrix::rowSums(single.mat) > 1,]
+  combo.groups <- unique(apply(combo.rows, 1, function(x) {
+    paste(names(x[x == 1]), collapse = ":", sep = "")
+  }))
+  if (max.groups > 1 && length(combo.groups) > 0) {
+    combo.group.list <- hash::hash(keys = combo.groups)
+    for (i in 1:nrow(combo.rows)) {
+      mat.row <- combo.rows[i,]
+      genotype <- paste(names(mat.row[mat.row == 1]), collapse = ":", sep = "")
+      cell <- rownames(combo.rows)[[i]]
+      combo.group.list[[genotype]] <- c(combo.group.list[[genotype]], cell)
+    }
+    combo.group.list <- as.list(combo.group.list)
+    combo.group.list[['keys']] <- NULL
+    combo.group.list <- combo.group.list[combo.groups]
+
+    combo.mat <- Matrix(0, nrow(single.mat), length(combo.groups),
+                        dimnames = list(rownames(single.mat), combo.groups))
+    for (i in 1:ncol(combo.mat)) {
+      combo.mat[combo.group.list[[i]],i] <- 1
+    }
+    design.mat <- cbind(single.mat, combo.mat)
+
+  } else {
+    design.mat <- single.mat
+  }
+
+  design.mat <- design.mat[,Matrix::colSums(design.mat) > min.cells]
+  return(as(design.mat, "dgCMatrix"))
+}
 
 
 #' Filters out cells that belong to control genotype and other genotypes
