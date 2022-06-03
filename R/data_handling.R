@@ -65,40 +65,6 @@ UnflattenGroups <- function(groups) {
 }
 
 
-#' Read in sample groups from a csv file format
-#'
-#' @param groups.file Name of groups file
-#' @param sep.char Delimiter
-#'
-#' @return List of groups
-#'
-#' @export
-#'
-ReadGroups <- function(groups.file, sep.char = ",") {
-  group.data <- read.table(groups.file, sep = sep.char, header = F, stringsAsFactors = F)
-  groups <- group.data[[1]]
-  full.groups.list <- lapply(rownames(group.data), function(i) sapply(strsplit(group.data[i,2], split = ',')[[1]], trimws))
-  full.groups.list <- lapply(full.groups.list, function(x) make.names(x))
-  names(full.groups.list) <- groups
-  return(full.groups.list)
-}
-
-
-#' Write sample groups from list to csv format
-#'
-#' @param groups.list List of groups
-#' @param out.file Name of output file
-#'
-#' @export
-#'
-WriteGroups <- function(groups.list, out.file) {
-  group.data <- sapply(groups.list, function(x) paste('\"', paste(x, collapse = ", "), '\"', sep = ""))
-  group.data <- sapply(names(group.data), function(x) paste(x, group.data[[x]], sep = ","))
-  fileConn = file(out.file)
-  writeLines(group.data, fileConn)
-  close(fileConn)
-}
-
 #' Stratify groups by additional factor
 #'
 #' @param group.list Perturbation dictionary (in list format)
@@ -422,4 +388,29 @@ GroupClusterComp <- function(group.list,
   }
 
   return(group_cluster_frac)
+}
+
+
+#' Splits data into folds stratified by a perturbation dictionary
+#'
+#' @param groups.list Perturbation dictionary
+#' @param nfolds Number of folds
+#' @param seed Set a random seed for reproducibility
+#'
+#' @return List of folds
+#' @export
+#'
+SplitFoldsByGroup <- function(groups.list, nfolds, seed = NULL) {
+  require(caret)
+  all.cells <- unique(unlist(group.list, F, F))
+  folds.list <- lapply(group.list, function(cells) {
+    set.seed(seed)
+    lapply(caret::createFolds(cells, k = nfolds), function(ix) cells[ix])
+  })
+
+  lapply(1:nfolds, function(i) {
+    test <- unique(unlist(lapply(folds.list, function(cells.split) cells.split[[i]]), F, F))
+    train <- all.cells[!all.cells %in% test]
+    return(list(test = test, train = train))
+  })
 }
