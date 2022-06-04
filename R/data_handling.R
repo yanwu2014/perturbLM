@@ -400,7 +400,7 @@ GroupClusterComp <- function(group.list,
 #' @return List of folds
 #' @export
 #'
-SplitFoldsByGroup <- function(groups.list, nfolds, seed = NULL) {
+SplitFoldsByGroup <- function(group.list, nfolds, seed = NULL) {
   require(caret)
   all.cells <- unique(unlist(group.list, F, F))
   folds.list <- lapply(group.list, function(cells) {
