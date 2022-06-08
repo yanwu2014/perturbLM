@@ -397,7 +397,7 @@ GroupClusterComp <- function(group.list,
 #' @param nfolds Number of folds
 #' @param seed Set a random seed for reproducibility
 #'
-#' @return List of folds
+#' @return List of fold splits
 #' @export
 #'
 SplitFoldsByGroup <- function(group.list, nfolds, seed = NULL) {
@@ -409,8 +409,12 @@ SplitFoldsByGroup <- function(group.list, nfolds, seed = NULL) {
   })
 
   lapply(1:nfolds, function(i) {
-    test <- unique(unlist(lapply(folds.list, function(cells.split) cells.split[[i]]), F, F))
-    train <- all.cells[!all.cells %in% test]
-    return(list(test = test, train = train))
+    test.cells <- unique(unlist(lapply(folds.list, function(cells.split) cells.split[[i]]), F, F))
+
+    fold.split <- rep("train", length(all.cells))
+    names(fold.split) <- all.cells
+
+    fold.split[test.cells] <- "test"
+    return(fold.split)
   })
 }
