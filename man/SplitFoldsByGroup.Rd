@@ -4,17 +4,17 @@
 \alias{SplitFoldsByGroup}
 \title{Splits data into folds stratified by a perturbation dictionary}
 \usage{
-SplitFoldsByGroup(groups.list, nfolds, seed = NULL)
+SplitFoldsByGroup(group.list, nfolds, seed = NULL)
 }
 \arguments{
-\item{groups.list}{Perturbation dictionary}
-
 \item{nfolds}{Number of folds}
 
 \item{seed}{Set a random seed for reproducibility}
+
+\item{groups.list}{Perturbation dictionary}
 }
 \value{
-List of folds
+List of fold splits
 }
 \description{
 Splits data into folds stratified by a perturbation dictionary

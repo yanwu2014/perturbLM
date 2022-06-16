@@ -85,6 +85,83 @@ RunCrossValidation <- function(x,
 }
 
 
+#' Run per-gene linear mixed models using glmmLasso
+#'
+#' @param model_df Dataframe containing covariates used in the model formulas
+#' @param Y Gene expression matrix
+#' @param fixed_form Model formula for fixed effects
+#' @param rand_form Model formula for random effects
+#' @param lambda Lasso regularization parameter (default: 0)
+#' @param fam Distribution that describes gene expression (default: gaussian())
+#' @param n_cores Number of cores to use for parallel processing (default: 8)
+#' @param verbose Print error statements (default: False)
+#'
+#' @import glmmLasso
+#' @return List of fitted linear mixed model objects (one per gene)
+#' @export
+#'
+RunMixedLM <- function(model_df,
+                       Y,
+                       fixed_form,
+                       rand_form,
+                       lambda = 0,
+                       fam = gaussian(),
+                       n_cores = 8,
+                       verbose = F) {
+  require(snow)
+
+  cl <- makeCluster(n_cores)
+  clusterExport(cl, c("model_df", "fixed_form", "rand_form", "lambda", "fam"),
+                envir = environment())
+  parLapply(cl, 1:length(cl), function(i) {
+    require(glmmLasso)
+  })
+  fit_list <- parApply(cl, as.matrix(Y), 2, function(x) {
+    model_df$gene <- x
+    tryCatch({
+      fit <- glmmLasso(fix = fixed_form,
+                       rnd = rand_form,
+                       data = model_df,
+                       lambda = lambda,
+                       family = fam)
+      fit$W <- fit$X <- fit$data <- fit$fitted.values <- fit$y <- NULL
+      return(fit)
+    }, error = function(e) {
+      if (verbose) print(e)
+      return(NULL)
+    })
+  })
+  stopCluster(cl)
+
+  if (verbose) {
+    print(paste0(sum(sapply(fit_list, is.null)), " genes had errors"))
+  }
+
+  fit_list <- fit_list[!sapply(fit_list, is.null)]
+  return(fit_list)
+}
+
+
+#' Predict expression given a new model dataframe
+#'
+#' @param fit_list List of fitted glmmLasso objects
+#' @param new_model_df New model dataframe to predict on (must contain same covariate columns as original dataframe)
+#'
+#' @return Matrix of predicted values
+#' @export
+#'
+PredictMixedLM <- function(fit_list, new_model_df) {
+  pred_list <- lapply(fit_list, function(fit) {
+    as.numeric(predict(fit, newdata = new_model_df))
+  })
+  pred_mat <- do.call(rbind, pred_list)
+  print(dim(pred_mat))
+  colnames(pred_mat) <- rownames(model_df)
+
+  return(pred_mat)
+}
+
+
 #' Extract coefficient matrix from a multigaussian glmnet object
 #'
 #' @param mfit Glmnet object (multigaussian)

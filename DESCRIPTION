@@ -2,7 +2,7 @@ Package: perturbLM
 Type: Package
 Title: Analyzes the effect of perturbations on the single cell transcriptome using linear models.
        Inspired by the MIMOSCA python package (https://github.com/asncd/MIMOSCA)
-Version: 0.3.3
+Version: 0.3.4
 Author: Yan Wu
 Maintainer: Yan Wu <yauwning@gmail.com>
 Description: 
@@ -30,5 +30,6 @@ Imports:
       compiler,
       liger,
       abind,
+      glmmLasso,
       reshape2
 RoxygenNote: 7.1.2
