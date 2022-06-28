@@ -136,58 +136,16 @@ MergeGroupLists <- function(group.list.1, group.list.2) {
 }
 
 
-#' Convert genotypes list to design matrix
+#' Convert genotypes list to design matrix.
+#' DesignMatrixGenotypes is deprecated, use CreateDesignMatrix.
 #'
-#' @param genotypes.list Named list of cell vectors for each genotype
-#' @param max.genotypes Maximum number of genotypes per cell
-#' @param min.cells Minumum number of cells per genotype, including combo genotypes
-#'
-#' @return Sparse binary matrix where rows are cells, and columns are genotypes. 1 means the cell received the genotype.
-#'
-#' @import Matrix
-#' @import hash
 #' @export
 #'
 DesignMatrixGenotypes <- function(genotypes.list, max.genotypes = 2, min.cells = 10) {
   .Deprecated("DesignMatrixGenotypes", package="perturbLM",
-              msg = "Use CreateDesignMatrix",
+              msg = "DesignMatrixGenotypes is deprecated, use CreateDesignMatrix",
               old = as.character(sys.call(sys.parent()))[1L])
-  cell.names <- unique(unlist(genotypes.list, F, F))
-  single.genotypes <- names(genotypes.list)
-
-  single.mat <- Matrix::Matrix(0, length(cell.names), length(single.genotypes),
-                               dimnames = list(cell.names, single.genotypes))
-  for (i in 1:ncol(single.mat)) {
-    single.mat[genotypes.list[[i]], i] <- 1
-  }
-  single.mat <- single.mat[Matrix::rowSums(single.mat) > 0, ]
-
-  combo.rows <- single.mat[Matrix::rowSums(single.mat) > 1,]
-  combo.genotypes <- unique(apply(combo.rows, 1, function(x) paste(names(x[x == 1]), collapse = ":", sep = "")))
-  if (max.genotypes > 1 && length(combo.genotypes) > 0) {
-    combo.genotypes.list <- hash::hash(keys = combo.genotypes)
-    for (i in 1:nrow(combo.rows)) {
-      mat.row <- combo.rows[i,]
-      genotype <- paste(names(mat.row[mat.row == 1]), collapse = ":", sep = "")
-      cell <- rownames(combo.rows)[[i]]
-      combo.genotypes.list[[genotype]] <- c(combo.genotypes.list[[genotype]], cell)
-    }
-    combo.genotypes.list <- as.list(combo.genotypes.list)
-    combo.genotypes.list[['keys']] <- NULL
-    combo.genotypes.list <- combo.genotypes.list[combo.genotypes]
-
-    combo.mat <- Matrix(0, nrow(single.mat), length(combo.genotypes), dimnames = list(rownames(single.mat), combo.genotypes))
-    for (i in 1:ncol(combo.mat)) {
-      combo.mat[combo.genotypes.list[[i]],i] <- 1
-    }
-    design.mat <- cbind(single.mat, combo.mat)
-
-  } else {
-    design.mat <- single.mat
-  }
-
-  design.mat <- design.mat[,Matrix::colSums(design.mat) > min.cells]
-  return(as(design.mat, "dgCMatrix"))
+  CreateDesignMatrix(genotypes.list, max.genotypes, min.cells)
 }
 
 
@@ -247,17 +205,15 @@ CreateDesignMatrix <- function(group.list, max.groups = 3, min.cells = 10) {
 
 
 #' Filters out cells that belong to control genotype and other genotypes
+#' CleanDesignCtrl is deprecated, use CleanControls instead
 #'
-#' @param design.mat Design matrix
-#' @param ctrl Control genotype
-#'
-#' @return Filtered design matrix
 #' @export
 #'
 CleanDesignCtrl <- function(design.mat, ctrl) {
   .Deprecated("CleanDesignCtrl", package="perturbLM",
-              msg = "Use CleanControls instead",
+              msg = "CleanDesignCtrl is deprecated, use CleanControls instead",
               old = as.character(sys.call(sys.parent()))[1L])
+
   ctrl.iy <- which(colnames(design.mat) == ctrl)
   design.mat <- Matrix(t(apply(design.mat, 1, function(x) {
     if (x[[ctrl.iy]] == 1 && sum(x) > 1) { x[[ctrl.iy]] <- 0 }
