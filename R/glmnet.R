@@ -34,18 +34,18 @@ RunCrossValidation <- function(x,
                                plot = T,
                                n.cores = 4,
                                family = "mgaussian",
-                               nlambda = 25,
-                               lambda.min.ratio = 1e-6,
-                               nfolds = 5) {
+                               nlambda = 10,
+                               lambda.min.ratio = 0.01,
+                               nfolds = 4) {
   require(snow)
 
   cl <- snow::makeCluster(n.cores, type = "SOCK")
-  snow::clusterExport(cl, c("x", "y", "family", "nlambda", "lambda.min.ratio",
-                            "nfolds"), envir = environment())
+  snow::clusterExport(cl, c("x", "y", "family", "nlambda", "lambda.min.ratio", "nfolds"),
+                      envir = environment())
   invisible(snow::parLapply(cl, 1:n.cores, function(i) library(glmnet)))
   cv.list <- snow::parLapply(cl, alpha.seq, function(a) {
     cv.glmnet(x = x,
-              y = as.matrix(y),
+              y = y,
               alpha = a,
               family = family,
               nlambda = nlambda,
@@ -107,8 +107,14 @@ RunMixedLM <- function(model_df,
                        lambda = 0,
                        fam = gaussian(),
                        n_cores = 8,
+                       batch.size = 20,
                        verbose = F) {
   require(snow)
+
+  model_df$condition <- droplevels(model_df$condition)
+  gene.batch <- split(colnames(Y), ceiling(seq_along(colnames(Y))/batch.size))
+  Y.batch <- lapply(gene.batch, function(g) Y[,g])
+  rm(Y); invisible(gc());
 
   cl <- makeCluster(n_cores)
   clusterExport(cl, c("model_df", "fixed_form", "rand_form", "lambda", "fam"),
@@ -116,22 +122,26 @@ RunMixedLM <- function(model_df,
   parLapply(cl, 1:length(cl), function(i) {
     require(glmmLasso)
   })
-  fit_list <- parApply(cl, as.matrix(Y), 2, function(x) {
-    model_df$gene <- x
-    tryCatch({
-      fit <- glmmLasso(fix = fixed_form,
-                       rnd = rand_form,
-                       data = model_df,
-                       lambda = lambda,
-                       family = fam)
-      fit$W <- fit$X <- fit$data <- fit$fitted.values <- fit$y <- NULL
-      return(fit)
-    }, error = function(e) {
-      if (verbose) print(e)
-      return(NULL)
-    })
+  fit_list <- parLapply(cl, Y.batch, function(y) {
+    return(apply(as.matrix(y), 2, function(x) {
+      model_df$gene <- x
+      tryCatch({
+        fit <- glmmLasso(fix = fixed_form,
+                         rnd = rand_form,
+                         data = model_df,
+                         lambda = lambda,
+                         family = fam)
+        fit$W <- fit$X <- fit$data <- fit$fitted.values <- fit$y <- NULL
+        return(fit)
+      }, error = function(e) {
+        if (verbose) print(e)
+        return(NULL)
+      })
+    }))
   })
   stopCluster(cl)
+  names(fit_list) <- NULL
+  fit_list <- unlist(fit_list, F, T)
 
   if (verbose) {
     print(paste0(sum(sapply(fit_list, is.null)), " genes had errors"))
@@ -156,7 +166,6 @@ PredictMixedLM <- function(fit_list, new_model_df) {
     as.numeric(predict(fit, newdata = new_model_df))
   })
   pred_mat <- do.call(rbind, pred_list)
-  print(dim(pred_mat))
   colnames(pred_mat) <- rownames(new_model_df)
 
   return(pred_mat)
