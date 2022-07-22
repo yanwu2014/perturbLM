@@ -2,18 +2,12 @@
 % Please edit documentation in R/data_handling.R
 \name{CleanDesignCtrl}
 \alias{CleanDesignCtrl}
-\title{Filters out cells that belong to control genotype and other genotypes}
+\title{Filters out cells that belong to control genotype and other genotypes
+CleanDesignCtrl is deprecated, use CleanControls instead}
 \usage{
 CleanDesignCtrl(design.mat, ctrl)
 }
-\arguments{
-\item{design.mat}{Design matrix}
-
-\item{ctrl}{Control genotype}
-}
-\value{
-Filtered design matrix
-}
 \description{
 Filters out cells that belong to control genotype and other genotypes
+CleanDesignCtrl is deprecated, use CleanControls instead
 }

@@ -13,7 +13,7 @@ ReadGroups <- function(groups.file, sep.char = ",") {
   group.data <- read.table(groups.file, sep = sep.char, header = F, stringsAsFactors = F)
   groups <- group.data[[1]]
   full.groups.list <- lapply(rownames(group.data), function(i) sapply(strsplit(group.data[i,2], split = ',')[[1]], trimws))
-  full.groups.list <- lapply(full.groups.list, function(x) make.names(x))
+  # full.groups.list <- lapply(full.groups.list, function(x) make.names(x))
   names(full.groups.list) <- groups
   return(full.groups.list)
 }

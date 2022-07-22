@@ -8,6 +8,62 @@
 NULL
 
 
+#' Helper function for running cross validation on a sequence of lambda values
+#'
+#' @param x Design matrix + covariates matrix
+#' @param y Expression response
+#' @param pert_dict Perturbation dictionary
+#' @param metric Metric to use for evaluation (pearson, spearman)
+#' @param alpha Alpha value
+#' @param family GLM family to use for elasticnet (default: mgaussian)
+#' @param lambda lambda values to test
+#' @param folds List of train/test splits
+#'
+#' @return Matrix of cross validation errors per fold
+#' @import glmnet
+#'
+cross_validate_lambda <- function(x,
+                                  y,
+                                  pert_dict,
+                                  alpha,
+                                  metric,
+                                  family,
+                                  lambda,
+                                  folds) {
+
+  fold_err <- lapply(folds, function(split.ix) {
+    train.ix <- split.ix == "train"
+    test.ix <- split.ix == "test"
+
+    y.test <- as.matrix(y[test.ix,])
+    y.test <- y.test[,colSums(y.test) > 0]
+    y.test <- apply(y.test, 2, scale)
+    y.test[is.na(y.test)] <- 0
+    rownames(y.test) <- rownames(y)[test.ix]
+
+    pert_dict_sub <- lapply(pert_dict, function(cells) intersect(cells, rownames(y.test)))
+    y.test.avg <- lapply(pert_dict_sub, function(ix) colMeans(y.test[ix,]))
+    y.test.avg <- do.call(rbind, y.test.avg)
+
+    fit_train <- glmnet(x[train.ix,], y[train.ix, colnames(y.test)], family = family, alpha = alpha, lambda = lambda)
+
+    sapply(lambda, function(s) {
+      y.pred <- predict(fit_train, newx = x[test.ix, ], s = s)[,,1]
+      y.pred <- apply(y.pred, 2, scale)
+      y.pred[is.na(y.pred)] <- 0
+      rownames(y.pred) <- rownames(y)[test.ix]
+
+      y.pred.avg <- lapply(pert_dict_sub, function(ix) colMeans(y.pred[ix,]))
+      y.pred.avg <- do.call(rbind, y.pred.avg)
+      mean(sapply(1:nrow(y.pred.avg), function(i) cor(y.pred.avg[i,], y.test.avg[i,], method = metric)))
+    })
+  })
+
+  do.call(rbind, fold_err)
+}
+
+
+
 #' Run cross validation for both alpha and lambda
 #'
 #' @param x Design matrix + covariates matrix
@@ -30,39 +86,49 @@ NULL
 #'
 RunCrossValidation <- function(x,
                                y,
+                               pert_dict,
+                               metric = "pearson",
                                alpha.seq = seq(0, 1, by = 0.2),
                                plot = T,
                                n.cores = 4,
                                family = "mgaussian",
                                nlambda = 10,
                                lambda.min.ratio = 0.01,
-                               nfolds = 4) {
+                               nfolds = 4,
+                               seed = NULL) {
   require(snow)
 
+  valid_families <- c("mgaussian")
+  if (!family %in% valid_families) {
+    stop(paste0("Only ", paste(valid_families, collapse = ", "), " families are currently implemented"))
+  }
+
+  ## Get folds
+  folds <- SplitFoldsByGroup(pert_dict, nfolds, seed = seed)
+
   cl <- snow::makeCluster(n.cores, type = "SOCK")
-  snow::clusterExport(cl, c("x", "y", "family", "nlambda", "lambda.min.ratio", "nfolds"),
+  snow::clusterExport(cl, c("x", "y", "pert_dict", "metric", "family", "nlambda", "lambda.min.ratio", "folds"),
                       envir = environment())
   invisible(snow::parLapply(cl, 1:n.cores, function(i) library(glmnet)))
-  cv.list <- snow::parLapply(cl, alpha.seq, function(a) {
-    cv.glmnet(x = x,
-              y = y,
-              alpha = a,
-              family = family,
-              nlambda = nlambda,
-              lambda.min.ratio = lambda.min.ratio,
-              nfolds = nfolds,
-              standardize = F)
-  })
-  snow::stopCluster(cl)
+  cv_list <- parLapply(cl, alpha.seq, function(a) {
+    ## Get lambda sequence
+    fit_full <- glmnet(x, y, family = family, alpha = a, nlambda = nlambda, lambda.min.ratio = lambda.min.ratio)
+    lambda <- fit_full$lambda
 
-  cv_df <- lapply(1:length(alpha.seq), function(i) {
-    data.frame(error = cv.list[[i]]$cvm,
-               lambda = cv.list[[i]]$lambda,
-               log.lambda = log(cv.list[[i]]$lambda),
-               alpha = alpha.seq[[i]])
+    fold_err <- cross_validate_lambda(x = x,
+                                      y = y,
+                                      pert_dict = pert_dict,
+                                      alpha = a,
+                                      metric = metric,
+                                      family = family,
+                                      lambda = lambda,
+                                      folds = folds)
 
+    data.frame(lambda = lambda, log.lambda = log(lambda), alpha = a, error = colMeans(fold_err))
   })
-  cv_df <- do.call(rbind, cv_df)
+  on.exit(snow::stopCluster(cl))
+
+  cv_df <- do.call(rbind, cv_list)
   cv_df$alpha_fac <- as.factor(cv_df$alpha)
   rownames(cv_df) <- NULL
 
@@ -78,11 +144,12 @@ RunCrossValidation <- function(x,
   print(paste0("Best alpha: ", alpha.min))
   print(paste0("Best lambda: ", lambda.min))
 
-  list(cv.list = cv.list,
-       cv.summary = cv_df,
+  list(cv.summary = cv_df,
        alpha.min = alpha.min,
        lambda.min = lambda.min)
 }
+
+
 
 
 #' Run per-gene linear mixed models using glmmLasso

@@ -2,20 +2,12 @@
 % Please edit documentation in R/data_handling.R
 \name{DesignMatrixGenotypes}
 \alias{DesignMatrixGenotypes}
-\title{Convert genotypes list to design matrix}
+\title{Convert genotypes list to design matrix.
+DesignMatrixGenotypes is deprecated, use CreateDesignMatrix.}
 \usage{
 DesignMatrixGenotypes(genotypes.list, max.genotypes = 2, min.cells = 10)
 }
-\arguments{
-\item{genotypes.list}{Named list of cell vectors for each genotype}
-
-\item{max.genotypes}{Maximum number of genotypes per cell}
-
-\item{min.cells}{Minumum number of cells per genotype, including combo genotypes}
-}
-\value{
-Sparse binary matrix where rows are cells, and columns are genotypes. 1 means the cell received the genotype.
-}
 \description{
-Convert genotypes list to design matrix
+Convert genotypes list to design matrix.
+DesignMatrixGenotypes is deprecated, use CreateDesignMatrix.
 }

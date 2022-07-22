@@ -7,13 +7,16 @@
 RunCrossValidation(
   x,
   y,
+  pert_dict,
+  metric = "pearson",
   alpha.seq = seq(0, 1, by = 0.2),
   plot = T,
   n.cores = 4,
   family = "mgaussian",
-  nlambda = 25,
-  lambda.min.ratio = 1e-06,
-  nfolds = 5
+  nlambda = 10,
+  lambda.min.ratio = 0.01,
+  nfolds = 4,
+  seed = NULL
 )
 }
 \arguments{

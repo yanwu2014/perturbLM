@@ -12,6 +12,7 @@ RunMixedLM(
   lambda = 0,
   fam = gaussian(),
   n_cores = 8,
+  batch.size = 20,
   verbose = F
 )
 }
