@@ -4,14 +4,14 @@
 \alias{cross_validate_lambda}
 \title{Helper function for running cross validation on a sequence of lambda values}
 \usage{
-cross_validate_lambda(x, y, pert_dict, alpha, metric, family, lambda, folds)
+cross_validate_lambda(x, y, groups.list, alpha, metric, family, lambda, folds)
 }
 \arguments{
 \item{x}{Design matrix + covariates matrix}
 
 \item{y}{Expression response}
 
-\item{pert_dict}{Perturbation dictionary}
+\item{groups.list}{Perturbation dictionary}
 
 \item{alpha}{Alpha value}
 

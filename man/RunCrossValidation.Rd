@@ -7,7 +7,7 @@
 RunCrossValidation(
   x,
   y,
-  pert_dict,
+  groups.list,
   metric = "pearson",
   alpha.seq = seq(0, 1, by = 0.2),
   plot = T,
