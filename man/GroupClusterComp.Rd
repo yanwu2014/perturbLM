@@ -5,7 +5,7 @@
 \title{Get cluster composition of each perturbation}
 \usage{
 GroupClusterComp(
-  group.list,
+  groups,
   clusters,
   samples = NULL,
   stabilize.var = TRUE,
@@ -13,7 +13,7 @@ GroupClusterComp(
 )
 }
 \arguments{
-\item{group.list}{Perturbation dictionary (in list format)}
+\item{groups}{Perturbation dictionary (in list format) or vector}
 
 \item{clusters}{Cluster annotations}
 

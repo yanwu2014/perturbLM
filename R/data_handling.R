@@ -57,10 +57,11 @@ FlattenGroups <- function(groups.list) {
 #' @export
 #'
 UnflattenGroups <- function(groups) {
-  groups.list <- lapply(unique(groups), function(g){
+  groups <- as.factor(groups)
+  groups.list <- lapply(levels(groups), function(g){
     names(groups[groups == g])
   })
-  names(groups.list) <- unique(groups)
+  names(groups.list) <- levels(groups)
   return(groups.list)
 }
 
@@ -145,15 +146,14 @@ DesignMatrixGenotypes <- function(genotypes.list, max.genotypes = 2, min.cells =
   .Deprecated("DesignMatrixGenotypes", package="perturbLM",
               msg = "DesignMatrixGenotypes is deprecated, use CreateDesignMatrix",
               old = as.character(sys.call(sys.parent()))[1L])
-  CreateDesignMatrix(genotypes.list, max.genotypes, min.cells)
+  CreateDesignMatrix(genotypes.list, min.cells)
 }
 
 
 #' Convert perturbation dictionary to design matrix
 #'
-#' @param group.list Named list of cell vectors for each perturbation
-#' @param max.groups Maximum number of perturbations per cell
-#' @param min.cells Minumum number of cells per perturbation, including combo perturbations
+#' @param groups Perturbation dictionary (in list format) or named vector
+#' @param min.cells Minumum number of cells per perturbation
 #'
 #' @return Sparse binary matrix where rows are cells, and columns are perturbation. 1 means the cell received the perturbation.
 #'
@@ -161,7 +161,13 @@ DesignMatrixGenotypes <- function(genotypes.list, max.genotypes = 2, min.cells =
 #' @import hash
 #' @export
 #'
-CreateDesignMatrix <- function(group.list, max.groups = 3, min.cells = 10) {
+CreateDesignMatrix <- function(groups,  min.cells = 10) {
+  if (is.list(groups)) {
+    group.list <- groups
+  } else {
+    group.list <- UnflattenGroups(groups)
+  }
+
   cell.names <- unique(unlist(group.list, F, F))
   single.groups <- names(group.list)
 
@@ -172,33 +178,33 @@ CreateDesignMatrix <- function(group.list, max.groups = 3, min.cells = 10) {
   }
   single.mat <- single.mat[Matrix::rowSums(single.mat) > 0, ]
 
-  combo.rows <- single.mat[Matrix::rowSums(single.mat) > 1,]
-  combo.groups <- unique(apply(combo.rows, 1, function(x) {
-    paste(names(x[x == 1]), collapse = ":", sep = "")
-  }))
-  if (max.groups > 1 && length(combo.groups) > 0) {
-    combo.group.list <- hash::hash(keys = combo.groups)
-    for (i in 1:nrow(combo.rows)) {
-      mat.row <- combo.rows[i,]
-      genotype <- paste(names(mat.row[mat.row == 1]), collapse = ":", sep = "")
-      cell <- rownames(combo.rows)[[i]]
-      combo.group.list[[genotype]] <- c(combo.group.list[[genotype]], cell)
-    }
-    combo.group.list <- as.list(combo.group.list)
-    combo.group.list[['keys']] <- NULL
-    combo.group.list <- combo.group.list[combo.groups]
-
-    combo.mat <- Matrix(0, nrow(single.mat), length(combo.groups),
-                        dimnames = list(rownames(single.mat), combo.groups))
-    for (i in 1:ncol(combo.mat)) {
-      combo.mat[combo.group.list[[i]],i] <- 1
-    }
-    design.mat <- cbind(single.mat, combo.mat)
-
-  } else {
-    design.mat <- single.mat
-  }
-
+  # combo.rows <- single.mat[Matrix::rowSums(single.mat) > 1,]
+  # combo.groups <- unique(apply(combo.rows, 1, function(x) {
+  #   paste(names(x[x == 1]), collapse = ":", sep = "")
+  # }))
+  # if (max.groups > 1 && length(combo.groups) > 0) {
+  #   combo.group.list <- hash::hash(keys = combo.groups)
+  #   for (i in 1:nrow(combo.rows)) {
+  #     mat.row <- combo.rows[i,]
+  #     genotype <- paste(names(mat.row[mat.row == 1]), collapse = ":", sep = "")
+  #     cell <- rownames(combo.rows)[[i]]
+  #     combo.group.list[[genotype]] <- c(combo.group.list[[genotype]], cell)
+  #   }
+  #   combo.group.list <- as.list(combo.group.list)
+  #   combo.group.list[['keys']] <- NULL
+  #   combo.group.list <- combo.group.list[combo.groups]
+  #
+  #   combo.mat <- Matrix(0, nrow(single.mat), length(combo.groups),
+  #                       dimnames = list(rownames(single.mat), combo.groups))
+  #   for (i in 1:ncol(combo.mat)) {
+  #     combo.mat[combo.group.list[[i]],i] <- 1
+  #   }
+  #   design.mat <- cbind(single.mat, combo.mat)
+  #
+  # } else {
+  #   design.mat <- single.mat
+  # }
+  design.mat <- single.mat
   design.mat <- design.mat[,Matrix::colSums(design.mat) > min.cells]
   return(as(design.mat, "dgCMatrix"))
 }
@@ -227,7 +233,7 @@ CleanDesignCtrl <- compiler::cmpfun(CleanDesignCtrl)
 
 #' Remove all cells in the control perturbation(s) that also received a non-control perturbation
 #'
-#' @param group.list Perturbation dictionary
+#' @param group.list Perturbation dictionary (in list format)
 #' @param ctrl.groups Control perturbation(s)
 #'
 #' @return Filtered perturbation dictionary
@@ -274,12 +280,18 @@ GroupOverlapCounts <- function(group.list.1, group.list.2) {
 
 #' Counts the number of cells in each perturbation/cluster
 #'
-#' @param group.list Perturbation dictionary (in list format)
+#' @param groups Perturbation dictionary (in list format) or named vector
 #' @param clusters Cluster annotations
 #'
 #' @return Dataframe of cluster cell counts for each perturbation
 #' @export
-GroupClusterCounts <- function(group.list, clusters) {
+GroupClusterCounts <- function(groups, clusters) {
+  if (is.list(groups)) {
+    group.list <- groups
+  } else {
+    group.list <- UnflattenGroups(groups)
+  }
+
   clusters <- factor(clusters)
   df <- matrix(0, length(group.list), nlevels(clusters))
   rownames(df) <- names(group.list)
@@ -298,7 +310,7 @@ GroupClusterCounts <- function(group.list, clusters) {
 
 #' Get cluster composition of each perturbation
 #'
-#' @param group.list Perturbation dictionary (in list format)
+#' @param groups Perturbation dictionary (in list format) or vector
 #' @param clusters Cluster annotations
 #' @param samples Samples (i.e. mice, patients, biological replicates, default: NULL)
 #' @param stabilize.var Apply variance stabilizing transformation (default: TRUE)
@@ -306,12 +318,18 @@ GroupClusterCounts <- function(group.list, clusters) {
 #'
 #' @return Dataframe of cluster compositions or logFCs for each perturbation
 #' @export
-GroupClusterComp <- function(group.list,
+GroupClusterComp <- function(groups,
                              clusters,
                              samples = NULL,
                              stabilize.var = TRUE,
                              ctrl.group = NULL)
 {
+  if (is.list(groups)) {
+    group.list <- groups
+  } else {
+    group.list <- UnflattenGroups(groups)
+  }
+
   if (!is.null(samples)) {
     group.list <- StratifyGroupList(group.list, samples, sep = '_')
   }
@@ -349,17 +367,22 @@ GroupClusterComp <- function(group.list,
 
 #' Splits data into folds stratified by a perturbation dictionary
 #'
-#' @param groups.list Perturbation dictionary
+#' @param groups Perturbation vector or dictionary
 #' @param nfolds Number of folds
 #' @param seed Set a random seed for reproducibility
 #'
 #' @return List of fold splits
 #' @export
 #'
-SplitFoldsByGroup <- function(group.list, nfolds, seed = NULL) {
+SplitFoldsByGroup <- function(groups, nfolds, seed = NULL) {
   require(caret)
-  all.cells <- unique(unlist(group.list, F, F))
-  folds.list <- lapply(group.list, function(cells) {
+
+  if (!is.list(groups)) {
+    groups <- UnflattenGroups(groups)
+  }
+
+  all.cells <- unique(unlist(groups, F, F))
+  folds.list <- lapply(groups, function(cells) {
     set.seed(seed)
     lapply(caret::createFolds(cells, k = nfolds), function(ix) cells[ix])
   })

@@ -12,36 +12,40 @@ NULL
 #'
 #' @param x Design matrix + covariates matrix
 #' @param y Expression response
-#' @param groups.list Perturbation dictionary
+#' @param groups Perturbation dictionary (in list format) or named vector
 #' @param metric Metric to use for evaluation (pearson, spearman)
 #' @param alpha Alpha value
 #' @param family GLM family to use for elasticnet (default: mgaussian)
 #' @param lambda lambda values to test
 #' @param folds List of train/test splits
 #'
-#' @return Matrix of cross validation errors per fold
+#' @return Matrix of cross validation correlations per fold
 #' @import glmnet
 #'
 cross_validate_lambda <- function(x,
                                   y,
-                                  groups.list,
+                                  groups,
                                   alpha,
                                   metric,
                                   family,
                                   lambda,
                                   folds) {
-  fold_err <- lapply(folds, function(split.ix) {
+  if (!is.list(groups)) {
+    groups <- UnflattenGroups(groups)
+  }
+
+  fold_cor <- lapply(folds, function(split.ix) {
     train.ix <- split.ix == "train"
     test.ix <- split.ix == "test"
 
     y.test <- as.matrix(y[test.ix,])
     y.test <- y.test[,colSums(y.test) > 0]
     y.test <- apply(y.test, 2, scale)
-    y.test[is.na(y.test)] <- 0
     rownames(y.test) <- rownames(y)[test.ix]
 
-    groups.list.sub <- lapply(groups.list, function(cells) intersect(cells, rownames(y.test)))
-    y.test.avg <- lapply(groups.list.sub, function(ix) colMeans(y.test[ix,]))
+    groups.sub <- lapply(groups, function(cells) intersect(cells, rownames(y.test)))
+    groups.sub <- groups.sub[sapply(groups.sub, length) > 1]
+    y.test.avg <- lapply(groups.sub, function(ix) colMeans(y.test[ix,]))
     y.test.avg <- do.call(rbind, y.test.avg)
 
     fit_train <- glmnet(x[train.ix,], y[train.ix, colnames(y.test)], family = family, alpha = alpha, lambda = lambda)
@@ -49,16 +53,20 @@ cross_validate_lambda <- function(x,
     sapply(lambda, function(s) {
       y.pred <- predict(fit_train, newx = x[test.ix, ], s = s)[,,1]
       y.pred <- apply(y.pred, 2, scale)
-      y.pred[is.na(y.pred)] <- 0
       rownames(y.pred) <- rownames(y)[test.ix]
+      y.pred[is.na(y.pred) | is.nan(y.pred)] <- 0
 
-      y.pred.avg <- lapply(groups.list.sub, function(ix) colMeans(y.pred[ix,]))
+      y.pred.avg <- lapply(groups.sub, function(ix) colMeans(y.pred[ix,]))
       y.pred.avg <- do.call(rbind, y.pred.avg)
-      mean(sapply(1:nrow(y.pred.avg), function(i) cor(y.pred.avg[i,], y.test.avg[i,], method = metric)))
+
+      pred.cors <- sapply(1:nrow(y.pred.avg), function(i) cor(y.pred.avg[i,], y.test.avg[i,], method = metric))
+      pred.cors[is.na(pred.cors)] <- 0
+
+      mean(pred.cors)
     })
   })
 
-  do.call(rbind, fold_err)
+  do.call(rbind, fold_cor)
 }
 
 
@@ -67,6 +75,7 @@ cross_validate_lambda <- function(x,
 #'
 #' @param x Design matrix + covariates matrix
 #' @param y Expression response
+#' @param groups Perturbation dictionary (in list format) or named vector
 #' @param alpha.seq Sequence of alpha values to test
 #' @param plot Plot cross validation results (default: True)
 #' @param n.cores Number of cores to use (default: 4)
@@ -85,7 +94,7 @@ cross_validate_lambda <- function(x,
 #'
 RunCrossValidation <- function(x,
                                y,
-                               groups.list,
+                               groups,
                                metric = "pearson",
                                alpha.seq = seq(0, 1, by = 0.2),
                                plot = T,
@@ -103,28 +112,35 @@ RunCrossValidation <- function(x,
   }
 
   ## Get folds
-  groups.list <- lapply(groups.list, function(cells) intersect(cells, rownames(x)))
-  folds <- SplitFoldsByGroup(groups.list, nfolds, seed = seed)
+  if (!is.list(groups)) {
+    groups <- UnflattenGroups(groups)
+  }
+  groups <- lapply(groups, function(cells) intersect(cells, rownames(x)))
+  folds <- SplitFoldsByGroup(groups, nfolds, seed = seed)
 
   cl <- snow::makeCluster(n.cores, type = "SOCK")
-  snow::clusterExport(cl, c("x", "y", "groups.list", "metric", "family", "nlambda", "lambda.min.ratio", "folds"),
+  snow::clusterExport(cl, c("x", "y", "groups", "metric", "family", "nlambda", "lambda.min.ratio", "folds"),
                       envir = environment())
-  invisible(snow::parLapply(cl, 1:n.cores, function(i) library(glmnet)))
+  invisible(snow::parLapply(cl, 1:n.cores, function(i) {
+    library(glmnet)
+    library(Matrix)
+  }))
   cv_list <- parLapply(cl, alpha.seq, function(a) {
     ## Get lambda sequence
     fit_full <- glmnet(x, y, family = family, alpha = a, nlambda = nlambda, lambda.min.ratio = lambda.min.ratio)
     lambda <- fit_full$lambda
 
-    fold_err <- cross_validate_lambda(x = x,
+    fold_cor <- cross_validate_lambda(x = x,
                                       y = y,
-                                      groups.list = groups.list,
+                                      groups = groups,
                                       alpha = a,
                                       metric = metric,
                                       family = family,
                                       lambda = lambda,
                                       folds = folds)
 
-    data.frame(lambda = lambda, log.lambda = log(lambda), alpha = a, error = colMeans(fold_err))
+    mean.cor <- apply(fold_cor, 2, function(x) mean(na.omit(x)))
+    data.frame(lambda = lambda, log.lambda = log(lambda), alpha = a, R = mean.cor)
   })
   on.exit(snow::stopCluster(cl))
 
@@ -134,14 +150,14 @@ RunCrossValidation <- function(x,
   rownames(cv_df) <- NULL
 
   if (plot) {
-    ggplot(data=cv_df, aes(x=log.lambda, y=error, color=alpha_fac)) +
-      geom_line() +
-      geom_point() +
-      theme_classic()
+    print(ggplot(data=cv_df, aes(x=log.lambda, y=R, color=alpha_fac)) +
+            geom_line() +
+            geom_point() +
+            theme_classic())
   }
 
-  alpha.min <- cv_df[which.min(cv_df$error), "alpha"]
-  lambda.min <- cv_df[which.min(cv_df$error), "lambda"]
+  alpha.min <- cv_df[which.max(cv_df$R), "alpha"]
+  lambda.min <- cv_df[which.max(cv_df$R), "lambda"]
   print(paste0("Best alpha: ", alpha.min))
   print(paste0("Best lambda: ", lambda.min))
 

@@ -7,7 +7,7 @@
 CleanControls(group.list, ctrl.groups)
 }
 \arguments{
-\item{group.list}{Perturbation dictionary}
+\item{group.list}{Perturbation dictionary (in list format)}
 
 \item{ctrl.groups}{Control perturbation(s)}
 }

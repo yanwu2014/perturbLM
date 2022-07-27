@@ -4,14 +4,12 @@
 \alias{CreateDesignMatrix}
 \title{Convert perturbation dictionary to design matrix}
 \usage{
-CreateDesignMatrix(group.list, max.groups = 3, min.cells = 10)
+CreateDesignMatrix(groups, min.cells = 10)
 }
 \arguments{
-\item{group.list}{Named list of cell vectors for each perturbation}
+\item{groups}{Perturbation dictionary (in list format) or named vector}
 
-\item{max.groups}{Maximum number of perturbations per cell}
-
-\item{min.cells}{Minumum number of cells per perturbation, including combo perturbations}
+\item{min.cells}{Minumum number of cells per perturbation}
 }
 \value{
 Sparse binary matrix where rows are cells, and columns are perturbation. 1 means the cell received the perturbation.

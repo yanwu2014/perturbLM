@@ -4,14 +4,14 @@
 \alias{cross_validate_lambda}
 \title{Helper function for running cross validation on a sequence of lambda values}
 \usage{
-cross_validate_lambda(x, y, groups.list, alpha, metric, family, lambda, folds)
+cross_validate_lambda(x, y, groups, alpha, metric, family, lambda, folds)
 }
 \arguments{
 \item{x}{Design matrix + covariates matrix}
 
 \item{y}{Expression response}
 
-\item{groups.list}{Perturbation dictionary}
+\item{groups}{Perturbation dictionary (in list format) or named vector}
 
 \item{alpha}{Alpha value}
 
@@ -24,7 +24,7 @@ cross_validate_lambda(x, y, groups.list, alpha, metric, family, lambda, folds)
 \item{folds}{List of train/test splits}
 }
 \value{
-Matrix of cross validation errors per fold
+Matrix of cross validation correlations per fold
 }
 \description{
 Helper function for running cross validation on a sequence of lambda values

@@ -7,7 +7,7 @@
 RunCrossValidation(
   x,
   y,
-  groups.list,
+  groups,
   metric = "pearson",
   alpha.seq = seq(0, 1, by = 0.2),
   plot = T,
@@ -23,6 +23,8 @@ RunCrossValidation(
 \item{x}{Design matrix + covariates matrix}
 
 \item{y}{Expression response}
+
+\item{groups}{Perturbation dictionary (in list format) or named vector}
 
 \item{alpha.seq}{Sequence of alpha values to test}
 

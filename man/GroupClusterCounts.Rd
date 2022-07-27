@@ -4,10 +4,10 @@
 \alias{GroupClusterCounts}
 \title{Counts the number of cells in each perturbation/cluster}
 \usage{
-GroupClusterCounts(group.list, clusters)
+GroupClusterCounts(groups, clusters)
 }
 \arguments{
-\item{group.list}{Perturbation dictionary (in list format)}
+\item{groups}{Perturbation dictionary (in list format) or named vector}
 
 \item{clusters}{Cluster annotations}
 }
