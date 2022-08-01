@@ -9,14 +9,15 @@ RunCrossValidation(
   y,
   groups,
   metric = "pearson",
-  alpha.seq = seq(0, 1, by = 0.2),
+  alpha.seq = c(0.1, 0.4, 0.7, 0.9, 0.95, 1),
   plot = T,
   n.cores = 4,
   family = "mgaussian",
   nlambda = 10,
   lambda.min.ratio = 0.01,
   nfolds = 4,
-  seed = NULL
+  seed = NULL,
+  seq.lambda.pred = F
 )
 }
 \arguments{
@@ -25,6 +26,8 @@ RunCrossValidation(
 \item{y}{Expression response}
 
 \item{groups}{Perturbation dictionary (in list format) or named vector}
+
+\item{metric}{Metric to evaluate models (must be either pearson, spearman, or euclidean)}
 
 \item{alpha.seq}{Sequence of alpha values to test}
 
@@ -39,6 +42,10 @@ RunCrossValidation(
 \item{lambda.min.ratio}{Sets the minimum lambda value to test (default: 1e-6)}
 
 \item{nfolds}{Number of folds to cross validate over (default: 5)}
+
+\item{seed}{Random seed for fold reproducibility}
+
+\item{seq.lambda.pred}{Predict expression at each lambda value sequentially to save memory (default: F)}
 }
 \value{
 List of results containing cross validation objects (cv.list),

@@ -397,3 +397,39 @@ SplitFoldsByGroup <- function(groups, nfolds, seed = NULL) {
     return(fold.split)
   })
 }
+
+
+#' Compute average (scaled) expression of cells in each group
+#'
+#' @param m Expression matrix
+#' @param groups Perturbation dictionary or vector
+#' @param do.scale Scale expression matrix before averaging
+#' @param scale.max If do.scale is True, maximum scaled value
+#' @param min.cells Minimum cells per group to average over
+#'
+#' @return Matrix of average expression per group
+#' @export
+#'
+AvgGroupExpr <- function(m, groups, do.scale = F, scale.max = 6, min.cells = 3) {
+  if (!is.list(groups)) {
+    groups <- UnflattenGroups(groups)
+  }
+
+  if (do.scale) {
+    cell.names <- colnames(m)
+    m <- t(apply(m, 1, scale))
+    colnames(m) <- cell.names
+
+    m[m < -1*scale.max] <- scale.max
+    m[m > scale.max] <- scale.max
+  }
+
+  groups <- lapply(groups, function(ix) intersect(ix, colnames(m)))
+  groups <- groups[sapply(groups, length) >= min.cells]
+
+  m.avg <- lapply(groups, function(ix) rowMeans(m[,ix]))
+  m.avg <- do.call(cbind, m.avg)
+  m.avg[is.na(m.avg) | is.nan(m.avg)] <- 0
+
+  m.avg
+}

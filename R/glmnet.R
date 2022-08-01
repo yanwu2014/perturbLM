@@ -8,6 +8,7 @@
 NULL
 
 
+
 #' Helper function for running cross validation on a sequence of lambda values
 #'
 #' @param x Design matrix + covariates matrix
@@ -18,7 +19,7 @@ NULL
 #' @param family GLM family to use for elasticnet (default: mgaussian)
 #' @param lambda lambda values to test
 #' @param folds List of train/test splits
-#'
+#' @param seq.lambda.pred Predict expression at each lambda value sequentially to save memory
 #' @return Matrix of cross validation correlations per fold
 #' @import glmnet
 #'
@@ -29,7 +30,8 @@ cross_validate_lambda <- function(x,
                                   metric,
                                   family,
                                   lambda,
-                                  folds) {
+                                  folds,
+                                  seq.lambda.pred) {
   if (!is.list(groups)) {
     groups <- UnflattenGroups(groups)
   }
@@ -40,30 +42,44 @@ cross_validate_lambda <- function(x,
 
     y.test <- as.matrix(y[test.ix,])
     y.test <- y.test[,colSums(y.test) > 0]
-    y.test <- apply(y.test, 2, scale)
-    rownames(y.test) <- rownames(y)[test.ix]
-
-    groups.sub <- lapply(groups, function(cells) intersect(cells, rownames(y.test)))
-    groups.sub <- groups.sub[sapply(groups.sub, length) > 1]
-    y.test.avg <- lapply(groups.sub, function(ix) colMeans(y.test[ix,]))
-    y.test.avg <- do.call(rbind, y.test.avg)
+    y.test.avg <- AvgGroupExpr(t(y.test), groups, do.scale = T, scale.max = 6, min.cells = 3)
 
     fit_train <- glmnet(x[train.ix,], y[train.ix, colnames(y.test)], family = family, alpha = alpha, lambda = lambda)
 
-    sapply(lambda, function(s) {
-      y.pred <- predict(fit_train, newx = x[test.ix, ], s = s)[,,1]
-      y.pred <- apply(y.pred, 2, scale)
-      rownames(y.pred) <- rownames(y)[test.ix]
-      y.pred[is.na(y.pred) | is.nan(y.pred)] <- 0
 
-      y.pred.avg <- lapply(groups.sub, function(ix) colMeans(y.pred[ix,]))
-      y.pred.avg <- do.call(rbind, y.pred.avg)
+    if (seq.lambda.pred) {
+      lambda.cors <- sapply(lambda, function(s) {
+        y.pred <- predict(fit_train, newx = x[test.ix, ], s = s)[,,1]
+        if (metric == "euclidean") {
+          return(mean((y.pred - y.test)^2))
+        } else {
+          y.pred.avg <- AvgGroupExpr(t(y.pred), groups, do.scale = T, scale.max = 6, min.cells = 3)
 
-      pred.cors <- sapply(1:nrow(y.pred.avg), function(i) cor(y.pred.avg[i,], y.test.avg[i,], method = metric))
-      pred.cors[is.na(pred.cors)] <- 0
+          pred.cors <- sapply(1:ncol(y.pred.avg), function(i) cor(y.pred.avg[,i], y.test.avg[,i], method = metric))
+          pred.cors[is.na(pred.cors)] <- 0
 
-      mean(pred.cors)
-    })
+          return(mean(pred.cors))
+        }
+      })
+    } else {
+      y.pred.list <- predict(fit_train, newx = x[test.ix,], s = lambda)
+      y.pred.list <- lapply(1:dim(y.pred.list)[[3]], function(i) y.pred.list[,,i])
+      lambda.cors <- sapply(y.pred.list, function(y.pred) {
+        if (metric == "euclidean") {
+          mean((y.pred - y.test)^2)
+        } else {
+          y.pred.avg <- AvgGroupExpr(t(y.pred), groups, do.scale = T, scale.max = 6, min.cells = 3)
+
+          pred.cors <- sapply(1:ncol(y.pred.avg), function(i) cor(y.pred.avg[,i], y.test.avg[,i], method = metric))
+          pred.cors[is.na(pred.cors)] <- 0
+
+          mean(pred.cors)
+        }
+      })
+      names(lambda.cors) <- lambda
+    }
+
+    lambda.cors
   })
 
   do.call(rbind, fold_cor)
@@ -76,6 +92,7 @@ cross_validate_lambda <- function(x,
 #' @param x Design matrix + covariates matrix
 #' @param y Expression response
 #' @param groups Perturbation dictionary (in list format) or named vector
+#' @param metric Metric to evaluate models (must be either pearson, spearman, or euclidean)
 #' @param alpha.seq Sequence of alpha values to test
 #' @param plot Plot cross validation results (default: True)
 #' @param n.cores Number of cores to use (default: 4)
@@ -83,6 +100,8 @@ cross_validate_lambda <- function(x,
 #' @param nlambda Number of lambda values to test (default: 10)
 #' @param lambda.min.ratio Sets the minimum lambda value to test (default: 1e-6)
 #' @param nfolds Number of folds to cross validate over (default: 5)
+#' @param seed Random seed for fold reproducibility
+#' @param seq.lambda.pred Predict expression at each lambda value sequentially to save memory (default: F)
 #'
 #' @return List of results containing cross validation objects (cv.list),
 #'         cross validation summary stats (cv.summary),
@@ -96,19 +115,24 @@ RunCrossValidation <- function(x,
                                y,
                                groups,
                                metric = "pearson",
-                               alpha.seq = seq(0, 1, by = 0.2),
+                               alpha.seq = c(0.1, 0.4, 0.7, 0.9, 0.95, 1),
                                plot = T,
                                n.cores = 4,
                                family = "mgaussian",
                                nlambda = 10,
                                lambda.min.ratio = 0.01,
                                nfolds = 4,
-                               seed = NULL) {
+                               seed = NULL,
+                               seq.lambda.pred = F) {
   require(snow)
 
   valid_families <- c("mgaussian")
   if (!family %in% valid_families) {
     stop(paste0("Only ", paste(valid_families, collapse = ", "), " families are currently implemented"))
+  }
+
+  if (!metric %in% c("pearson", "spearman", "euclidean")) {
+    stop("Metric must be either pearson, spearman, or euclidean")
   }
 
   ## Get folds
@@ -118,8 +142,9 @@ RunCrossValidation <- function(x,
   groups <- lapply(groups, function(cells) intersect(cells, rownames(x)))
   folds <- SplitFoldsByGroup(groups, nfolds, seed = seed)
 
+  vars.export <- c("x", "y", "groups", "metric", "family", "nlambda", "lambda.min.ratio", "folds", "seq.lambda.pred")
   cl <- snow::makeCluster(n.cores, type = "SOCK")
-  snow::clusterExport(cl, c("x", "y", "groups", "metric", "family", "nlambda", "lambda.min.ratio", "folds"),
+  snow::clusterExport(cl, vars.export,
                       envir = environment())
   invisible(snow::parLapply(cl, 1:n.cores, function(i) {
     library(glmnet)
@@ -137,7 +162,8 @@ RunCrossValidation <- function(x,
                                       metric = metric,
                                       family = family,
                                       lambda = lambda,
-                                      folds = folds)
+                                      folds = folds,
+                                      seq.lambda.pred = seq.lambda.pred)
 
     mean.cor <- apply(fold_cor, 2, function(x) mean(na.omit(x)))
     data.frame(lambda = lambda, log.lambda = log(lambda), alpha = a, R = mean.cor)
@@ -155,9 +181,14 @@ RunCrossValidation <- function(x,
             geom_point() +
             theme_classic())
   }
+  if (metric == "euclidean") {
+    alpha.min <- cv_df[which.min(cv_df$R), "alpha"]
+    lambda.min <- cv_df[which.min(cv_df$R), "lambda"]
+  } else {
+    alpha.min <- cv_df[which.max(cv_df$R), "alpha"]
+    lambda.min <- cv_df[which.max(cv_df$R), "lambda"]
+  }
 
-  alpha.min <- cv_df[which.max(cv_df$R), "alpha"]
-  lambda.min <- cv_df[which.max(cv_df$R), "lambda"]
   print(paste0("Best alpha: ", alpha.min))
   print(paste0("Best lambda: ", lambda.min))
 
