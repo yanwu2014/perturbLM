@@ -420,7 +420,7 @@ AvgGroupExpr <- function(m, groups, do.scale = F, scale.max = 6, min.cells = 3) 
     m <- t(apply(m, 1, scale))
     colnames(m) <- cell.names
 
-    m[m < -1*scale.max] <- scale.max
+    m[m < -1*scale.max] <- -1*scale.max
     m[m > scale.max] <- scale.max
   }
 
