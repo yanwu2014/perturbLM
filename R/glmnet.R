@@ -50,7 +50,7 @@ cross_validate_lambda <- function(x,
     y.test <- y.test[,colSums(y.test) > 0]
     y.test.avg <- AvgGroupExpr(t(y.test), groups, do.scale = do.scale, scale.max = 10, min.cells = 3)
 
-    fit_train <- glmnet(x[train.ix,], y[train.ix, colnames(y.test)], family = family, alpha = alpha, lambda = lambda)
+    fit_train <- glmnet(x[train.ix,], y[train.ix, colnames(y.test)], family = family, alpha = alpha, lambda = lambda, standardize = F)
 
 
     if (seq.lambda.pred) {
@@ -158,7 +158,7 @@ RunCrossValidation <- function(x,
   }))
   cv_list <- parLapply(cl, alpha.seq, function(a) {
     ## Get lambda sequence
-    fit_full <- glmnet(x, y, family = family, alpha = a, nlambda = nlambda, lambda.min.ratio = lambda.min.ratio)
+    fit_full <- glmnet(x, y, family = family, alpha = a, nlambda = nlambda, lambda.min.ratio = lambda.min.ratio, standardize = F)
     lambda <- fit_full$lambda
 
     fold_cor <- cross_validate_lambda(x = x,
