@@ -36,13 +36,19 @@ cross_validate_lambda <- function(x,
     groups <- UnflattenGroups(groups)
   }
 
+  if (metric == "euclidean") {
+    do.scale = F
+  } else {
+    do.scale = T
+  }
+
   fold_cor <- lapply(folds, function(split.ix) {
     train.ix <- split.ix == "train"
     test.ix <- split.ix == "test"
 
     y.test <- as.matrix(y[test.ix,])
     y.test <- y.test[,colSums(y.test) > 0]
-    y.test.avg <- AvgGroupExpr(t(y.test), groups, do.scale = T, scale.max = 6, min.cells = 3)
+    y.test.avg <- AvgGroupExpr(t(y.test), groups, do.scale = do.scale, scale.max = 10, min.cells = 3)
 
     fit_train <- glmnet(x[train.ix,], y[train.ix, colnames(y.test)], family = family, alpha = alpha, lambda = lambda)
 
@@ -53,7 +59,7 @@ cross_validate_lambda <- function(x,
         if (metric == "euclidean") {
           return(mean((y.pred - y.test)^2))
         } else {
-          y.pred.avg <- AvgGroupExpr(t(y.pred), groups, do.scale = T, scale.max = 6, min.cells = 3)
+          y.pred.avg <- AvgGroupExpr(t(y.pred), groups, do.scale = do.scale, scale.max = 10, min.cells = 3)
 
           pred.cors <- sapply(1:ncol(y.pred.avg), function(i) cor(y.pred.avg[,i], y.test.avg[,i], method = metric))
           pred.cors[is.na(pred.cors)] <- 0
@@ -68,7 +74,7 @@ cross_validate_lambda <- function(x,
         if (metric == "euclidean") {
           mean((y.pred - y.test)^2)
         } else {
-          y.pred.avg <- AvgGroupExpr(t(y.pred), groups, do.scale = T, scale.max = 6, min.cells = 3)
+          y.pred.avg <- AvgGroupExpr(t(y.pred), groups, do.scale = do.scale, scale.max = 10, min.cells = 3)
 
           pred.cors <- sapply(1:ncol(y.pred.avg), function(i) cor(y.pred.avg[,i], y.test.avg[,i], method = metric))
           pred.cors[is.na(pred.cors)] <- 0
@@ -98,14 +104,14 @@ cross_validate_lambda <- function(x,
 #' @param n.cores Number of cores to use (default: 4)
 #' @param family GLM family to use for elasticnet (default: mgaussian)
 #' @param nlambda Number of lambda values to test (default: 10)
-#' @param lambda.min.ratio Sets the minimum lambda value to test (default: 1e-6)
+#' @param lambda.min.ratio Sets the minimum lambda value to test (default: 0.01)
 #' @param nfolds Number of folds to cross validate over (default: 5)
 #' @param seed Random seed for fold reproducibility
 #' @param seq.lambda.pred Predict expression at each lambda value sequentially to save memory (default: F)
 #'
 #' @return List of results containing cross validation objects (cv.list),
 #'         cross validation summary stats (cv.summary),
-#'         and the optimal lambda/alpha combo (alpha.min, lambda.min)
+#'         and the optimal lambda/alpha combo (alpha, lambda)
 #' @import snow
 #' @import glmnet
 #' @import ggplot2
@@ -182,19 +188,19 @@ RunCrossValidation <- function(x,
             theme_classic())
   }
   if (metric == "euclidean") {
-    alpha.min <- cv_df[which.min(cv_df$R), "alpha"]
-    lambda.min <- cv_df[which.min(cv_df$R), "lambda"]
+    alpha.use <- cv_df[which.min(cv_df$R), "alpha"]
+    lambda.use <- cv_df[which.min(cv_df$R), "lambda"]
   } else {
-    alpha.min <- cv_df[which.max(cv_df$R), "alpha"]
-    lambda.min <- cv_df[which.max(cv_df$R), "lambda"]
+    alpha.use <- cv_df[which.max(cv_df$R), "alpha"]
+    lambda.use <- cv_df[which.max(cv_df$R), "lambda"]
   }
 
-  print(paste0("Best alpha: ", alpha.min))
-  print(paste0("Best lambda: ", lambda.min))
+  print(paste0("Best alpha: ", alpha.use))
+  print(paste0("Best lambda: ", lambda.use))
 
   list(cv.summary = cv_df,
-       alpha.min = alpha.min,
-       lambda.min = lambda.min)
+       alpha = alpha.use,
+       lambda = lambda.use)
 }
 
 

@@ -39,7 +39,7 @@ RunCrossValidation(
 
 \item{nlambda}{Number of lambda values to test (default: 10)}
 
-\item{lambda.min.ratio}{Sets the minimum lambda value to test (default: 1e-6)}
+\item{lambda.min.ratio}{Sets the minimum lambda value to test (default: 0.01)}
 
 \item{nfolds}{Number of folds to cross validate over (default: 5)}
 
@@ -50,7 +50,7 @@ RunCrossValidation(
 \value{
 List of results containing cross validation objects (cv.list),
         cross validation summary stats (cv.summary),
-        and the optimal lambda/alpha combo (alpha.min, lambda.min)
+        and the optimal lambda/alpha combo (alpha, lambda)
 }
 \description{
 Run cross validation for both alpha and lambda
