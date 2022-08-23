@@ -17,5 +17,5 @@ and evaluate model performance on a per perturbation basis. This enables interpr
 perturbation effects on the transcriptome as well as other covariates (such as cell type).
 
 Coming soon:
-1. A tutorial on how to use linear models to infer non-linear interactions between perturbations and 
-cell type specific perturbation effects
+1. A tutorial on how to use linear models to infer non-linear interactions between perturbations
+2. A tutorial on how to infer cell type specific perturbation effects

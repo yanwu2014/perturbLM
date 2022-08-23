@@ -7,8 +7,13 @@ perturbLM is a lightweight package for assessing the effects of perturbations on
 Here, we'll demonstrate fitting a regularized linear model to a dataset measuring the single cell RNA-seq response
 to transcription factor overexpression in H1 stem cells.
 
-First download the example dataset from figshare [here](). The study that generated this dataset is linked [here](https://www.cell.com/cell-systems/pdfExtended/S2405-4712(18)30433-2). The dataset is stored as a 
-[Seurat object](https://satijalab.org/seurat/)
+First download the example dataset from figshare [here](https://figshare.com/articles/dataset/parekh_rds/20559030). 
+The study that generated this dataset is linked [here](https://www.cell.com/cell-systems/pdfExtended/S2405-4712(18)30433-2). 
+The dataset is stored as a [Seurat object](https://satijalab.org/seurat/)
+
+```{r setup, include=FALSE, warning=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
 
 Next load the necessary libraries
 ```{r}
@@ -74,13 +79,14 @@ sig.perts <- subset(model.results$evaluation, rel_performance > 2)$group
 sig.perts
 ```
 
-And find the top up/downregulated genes (by coefficient magnitude) for each perturbation
+And find the top upregulated genes (by coefficient magnitude) for each perturbation
 ```{r}
-ngenes <- 3
+ngenes <- 4
 top.sig.genes <- lapply(sig.perts, function(i) {
   top.up <- head(names(sort(model.results$coefs[,i], decreasing = T)), n = ngenes)
-  top.dn <- head(names(sort(model.results$coefs[,i], decreasing = F)), n = ngenes)
-  c(top.up, top.dn)
+  # top.dn <- head(names(sort(model.results$coefs[,i], decreasing = F)), n = ngenes)
+  # c(top.up, top.dn)
+  top.up
 })
 top.sig.genes <- unique(unlist(top.sig.genes, F, F))
 length(top.sig.genes)
@@ -91,28 +97,30 @@ We can create a new Seurat object with the model coefficients for visualization
 ```{r}
 pert.coefs <- model.results$coefs[,colnames(model.results$coefs) %in% levels(as.factor(obj$condition))]
 coef.obj <- CreateSeuratObject(pert.coefs)
-coef.obj <- ScaleData(coef.obj)
+coef.obj <- ScaleData(coef.obj, verbose = F)
 coef.obj$pert <- as.factor(colnames(coef.obj))
 coef.obj
 ```
 
 We can plot the effects of the top perturbations
-```{r}
+```{r, out.width = '70%'}
 coef.obj.top <- coef.obj[,sig.perts]
 coef.obj.top$pert <- droplevels(coef.obj.top$pert)
 levels(coef.obj.top$pert) <- sig.perts
-DoHeatmap(coef.obj.top, features = top.sig.genes, group.by = "pert", draw.lines = F)
+DoHeatmap(coef.obj.top, features = top.sig.genes, group.by = "pert", size = 4, disp.max = 5, draw.lines = F) + 
+  scale_fill_gradient2(low = "skyblue", mid = "white", high = "tomato", midpoint = 0) + 
+  labs(fill='Scaled Coefficient') 
 ```
 
 We can also embed the perturbations using PCA
-```{r}
+```{r, out.width = '70%'}
 coef.obj <- RunPCA(coef.obj, features = rownames(coef.obj))
 PCAPlot(coef.obj, group.by = "pert", label = T) + 
   theme(legend.position = "none")
 ```
 
 We can also use a nonlinear embedding like UMAP
-```{r}
+```{r, out.width = '70%'}
 coef.obj <- RunUMAP(coef.obj, dims = 1:15)
 DimPlot(coef.obj, reduction = "umap", label = T, group.by = "pert") + 
   theme(legend.position = "none")
