@@ -7,9 +7,110 @@
 #' @importFrom Rcpp sourceCpp
 NULL
 
+#' Set up design matrices and response given a Seurat object
+#'
+#' @param obj Seurat object
+#' @param pert.col Metadata column containing perturbation info (required)
+#' @param batch.col Metadata column containing batch info (default: NULL)
+#' @param size.factor.col Metadata column containing library size info (default: NULL)
+#' @param mito.col Metadata column containing mitochondrial fraction info (default: NULL)
+#' @param response.col Metadata column containing the desired response.
+#'                     If NULL, the normalized data in the Seurat object will be used as the response.
+#' @param features.use If response.col is NULL, a subset of features to use for the response
+#' @param test.prop Proportion of cells held out for model evaluation
+#'
+#' @return List of x (perturbation + covariate design matrix)
+#'         y (response vector or matrix), and family (response family)
+#' @export
+#'
+SetupLinearModel <- function(obj,
+                             pert.col,
+                             batch.col = NULL,
+                             size.factor.col = NULL,
+                             mito.col = NULL,
+                             response.col = NULL,
+                             features.use = NULL,
+                             test.prop = 0.2,
+                             seed = 12345) {
+
+  if (!require("Seurat")) {
+    stop("Install Seurat before running this function")
+  }
+
+  ## Set up design matrix
+  perts <- obj@meta.data[[pert.col]]
+  names(perts) <- colnames(obj)
+  pert.mat <- CreateDesignMatrix(perts)
+
+  if (is.null(batch.col)) {
+    cov.mat <- Matrix(1, nrow = nrow(pert.mat), ncol = 1,
+                      dimnames = c(rownames(pert.mat), c("batch")))
+  }
+  batch <- obj@meta.data[[batch.col]]
+  names(batch) <- colnames(obj)
+  cov.mat <- CreateDesignMatrix(as.factor(batch[rownames(pert.mat)]))
+
+  if (!is.null(size.factor.col)) {
+    size.factor <- scale(obj@meta.data[rownames(pert.mat), size.factor.col], center = F)
+    cov.mat <- cbind(cov.mat, size.factor)
+    colnames(cov.mat)[ncol(cov.mat)] <- "size.factor"
+  }
+
+  if (!is.null(mito.col)) {
+    percent.mt <- scale(obj@meta.data[rownames(pert.mat), mito.col], center = F)
+    cov.mat <- cbind(cov.mat, percent.mt)
+    colnames(cov.mat)[ncol(cov.mat)] <- "percent.mt"
+  }
+
+  x <- cbind(pert.mat, cov.mat)
+
+  ## Set up response
+  if (is.null(response.col)) {
+    print("Assuming response is normalized expression data ")
+    y <- t(GetAssayData(obj, slot = "data"))[rownames(pert.mat),]
+
+    if (!is.null(features.use)) {
+      y <- y[,features.use]
+    }
+
+    fam <- "mgaussian"
+  } else {
+    y <- obj@meta.data[[response.col]]
+    names(y) <- colnames(obj)
+    y <- y[rownames(pert.mat)]
+
+    if (is.factor(y) | is.character(y)) {
+      print("Assuming response is categorical")
+      y <- as.factor(y)
+      fam <- "multinomial"
+    } else if (is.numeric(y)) {
+      print("Assuming response is numeric")
+      fam <- "gaussian"
+    } else {
+      stop("Response must be either a factor, character, numeric, or NULL")
+    }
+  }
+
+  ## Get train/test split
+  if (test.prop < 0.01 | test.prop > 1/3) {
+    stop("test.prop must be between 0.01 and 1/3")
+  }
+  nfolds <- round(1/test.prop)
+  split <- SplitFoldsByGroup(perts, nfolds, seed = seed)[[1]]
+  train.cells <- names(split[split == "train"])
+  test.cells <- names(split[split == "test"])
+
+  ## Return design matrices & response
+  list(x = x,
+       y = y,
+       perts = perts,
+       train.cells = train.cells,
+       test.cells = test.cells,
+       family = fam)
+}
 
 
-#' Helper function for running cross validation on a sequence of lambda values
+#' Helper function for running cross validation on a sequence of lambda values for the mgaussian family
 #'
 #' @param x Design matrix + covariates matrix
 #' @param y Expression response
@@ -27,19 +128,11 @@ cross_validate_lambda <- function(x,
                                   y,
                                   groups,
                                   alpha,
-                                  metric,
-                                  family,
                                   lambda,
                                   folds,
                                   seq.lambda.pred) {
   if (!is.list(groups)) {
     groups <- UnflattenGroups(groups)
-  }
-
-  if (metric == "euclidean") {
-    do.scale = F
-  } else {
-    do.scale = T
   }
 
   fold_cor <- lapply(folds, function(split.ix) {
@@ -48,39 +141,20 @@ cross_validate_lambda <- function(x,
 
     y.test <- as.matrix(y[test.ix,])
     y.test <- y.test[,colSums(y.test) > 0]
-    y.test.avg <- AvgGroupExpr(t(y.test), groups, do.scale = do.scale, scale.max = 10, min.cells = 3)
 
-    fit_train <- glmnet(x[train.ix,], y[train.ix, colnames(y.test)], family = family, alpha = alpha, lambda = lambda, standardize = F)
+    fit_train <- glmnet(x[train.ix,], y[train.ix, colnames(y.test)], family = "mgaussian", alpha = alpha, lambda = lambda, standardize = F)
 
 
     if (seq.lambda.pred) {
       lambda.cors <- sapply(lambda, function(s) {
         y.pred <- predict(fit_train, newx = x[test.ix, ], s = s)[,,1]
-        if (metric == "euclidean") {
-          return(mean((y.pred - y.test)^2))
-        } else {
-          y.pred.avg <- AvgGroupExpr(t(y.pred), groups, do.scale = do.scale, scale.max = 10, min.cells = 3)
-
-          pred.cors <- sapply(1:ncol(y.pred.avg), function(i) cor(y.pred.avg[,i], y.test.avg[,i], method = metric))
-          pred.cors[is.na(pred.cors)] <- 0
-
-          return(mean(pred.cors))
-        }
+        return(mean((y.pred - y.test)^2))
       })
     } else {
       y.pred.list <- predict(fit_train, newx = x[test.ix,], s = lambda)
       y.pred.list <- lapply(1:dim(y.pred.list)[[3]], function(i) y.pred.list[,,i])
       lambda.cors <- sapply(y.pred.list, function(y.pred) {
-        if (metric == "euclidean") {
-          mean((y.pred - y.test)^2)
-        } else {
-          y.pred.avg <- AvgGroupExpr(t(y.pred), groups, do.scale = do.scale, scale.max = 10, min.cells = 3)
-
-          pred.cors <- sapply(1:ncol(y.pred.avg), function(i) cor(y.pred.avg[,i], y.test.avg[,i], method = metric))
-          pred.cors[is.na(pred.cors)] <- 0
-
-          mean(pred.cors)
-        }
+        mean((y.pred - y.test)^2)
       })
       names(lambda.cors) <- lambda
     }
@@ -98,7 +172,6 @@ cross_validate_lambda <- function(x,
 #' @param x Design matrix + covariates matrix
 #' @param y Expression response
 #' @param groups Perturbation dictionary (in list format) or named vector
-#' @param metric Metric to evaluate models (must be either pearson, spearman, or euclidean)
 #' @param alpha.seq Sequence of alpha values to test
 #' @param plot Plot cross validation results (default: True)
 #' @param n.cores Number of cores to use (default: 4)
@@ -120,7 +193,6 @@ cross_validate_lambda <- function(x,
 RunCrossValidation <- function(x,
                                y,
                                groups,
-                               metric = "pearson",
                                alpha.seq = c(0.1, 0.4, 0.7, 0.9, 0.95, 1),
                                plot = T,
                                n.cores = 4,
@@ -132,13 +204,12 @@ RunCrossValidation <- function(x,
                                seq.lambda.pred = F) {
   require(snow)
 
-  valid_families <- c("mgaussian")
-  if (!family %in% valid_families) {
-    stop(paste0("Only ", paste(valid_families, collapse = ", "), " families are currently implemented"))
+  if ((family == "mgaussian") && (length(dim(y)) != 2)) {
+    stop("Response y must be a 2D matrix when fitting mgaussian model")
   }
 
-  if (!metric %in% c("pearson", "spearman", "euclidean")) {
-    stop("Metric must be either pearson, spearman, or euclidean")
+  if ((family == "multinomial") && (!is.factor(y))) {
+    stop("Response y must be a factor when fitting multinomial model")
   }
 
   ## Get folds
@@ -148,7 +219,7 @@ RunCrossValidation <- function(x,
   groups <- lapply(groups, function(cells) intersect(cells, rownames(x)))
   folds <- SplitFoldsByGroup(groups, nfolds, seed = seed)
 
-  vars.export <- c("x", "y", "groups", "metric", "family", "nlambda", "lambda.min.ratio", "folds", "seq.lambda.pred")
+  vars.export <- c("x", "y", "groups", "family", "nlambda", "lambda.min.ratio", "folds", "seq.lambda.pred")
   cl <- snow::makeCluster(n.cores, type = "SOCK")
   snow::clusterExport(cl, vars.export,
                       envir = environment())
@@ -157,24 +228,28 @@ RunCrossValidation <- function(x,
     library(Matrix)
   }))
   cv_list <- parLapply(cl, alpha.seq, function(a) {
-    ## Get lambda sequence
-    fit_full <- glmnet(x, y, family = family, alpha = a, nlambda = nlambda, lambda.min.ratio = lambda.min.ratio, standardize = F)
-    lambda <- fit_full$lambda
+    if (family == "mgaussian") {
+      ## Get lambda sequence
+      fit_full <- glmnet(x, y, family = family, alpha = a, nlambda = nlambda, lambda.min.ratio = lambda.min.ratio, standardize = F)
+      lambda <- fit_full$lambda
 
-    fold_cor <- cross_validate_lambda(x = x,
-                                      y = y,
-                                      groups = groups,
-                                      alpha = a,
-                                      metric = metric,
-                                      family = family,
-                                      lambda = lambda,
-                                      folds = folds,
-                                      seq.lambda.pred = seq.lambda.pred)
+      fold_cor <- cross_validate_lambda(x = x,
+                                        y = y,
+                                        groups = groups,
+                                        alpha = a,
+                                        lambda = lambda,
+                                        folds = folds,
+                                        seq.lambda.pred = seq.lambda.pred)
 
-    mean.cor <- apply(fold_cor, 2, function(x) mean(na.omit(x)))
-    data.frame(lambda = lambda, log.lambda = log(lambda), alpha = a, R = mean.cor)
+      mean.cor <- apply(fold_cor, 2, function(x) mean(na.omit(x)))
+      return(data.frame(lambda = lambda, log.lambda = log(lambda), alpha = a, err = mean.cor))
+    } else {
+      cv <- cv.glmnet(x, y, family = family, alpha = a, nlambda = nlambda, lambda.min.ratio = lambda.min.ratio, standardize = F)
+      return(data.frame(lambda = cv$lambda, log.lambda = log(cv$lambda), alpha = a, err = cv$cvm))
+    }
   })
   on.exit(snow::stopCluster(cl))
+
 
 
   cv_df <- do.call(rbind, cv_list)
@@ -182,18 +257,13 @@ RunCrossValidation <- function(x,
   rownames(cv_df) <- NULL
 
   if (plot) {
-    print(ggplot(data=cv_df, aes(x=log.lambda, y=R, color=alpha_fac)) +
+    print(ggplot(data=cv_df, aes(x=log.lambda, y=err, color=alpha_fac)) +
             geom_line() +
             geom_point() +
             theme_classic())
   }
-  if (metric == "euclidean") {
-    alpha.use <- cv_df[which.min(cv_df$R), "alpha"]
-    lambda.use <- cv_df[which.min(cv_df$R), "lambda"]
-  } else {
-    alpha.use <- cv_df[which.max(cv_df$R), "alpha"]
-    lambda.use <- cv_df[which.max(cv_df$R), "lambda"]
-  }
+  alpha.use <- cv_df[which.min(cv_df$err), "alpha"]
+  lambda.use <- cv_df[which.min(cv_df$err), "lambda"]
 
   print(paste0("Best alpha: ", alpha.use))
   print(paste0("Best lambda: ", lambda.use))
@@ -204,6 +274,243 @@ RunCrossValidation <- function(x,
 }
 
 
+#' Helper function for computing cross entropy
+cross_entropy <- function(y, yhat) {
+  if ((ncol(y) != ncol(yhat)) || (nrow(y) != nrow(yhat))) {
+    stop("y and yhat must have equal dimensions")
+  }
+
+  sum(sapply(1:ncol(y), function(i) {
+    -1*sum(y[,i]*log(yhat[,i] + 1e-10))
+  }))
+}
+
+
+#' Function for evaluating linear model performance
+#'
+#' @param mdl.fit Linear model fit on training data
+#' @param x.test Test design matrix
+#' @param y.test Test response
+#' @param groups Perturbation dictionary (in list format) or named vector
+#' @param eval.metric Model evaluation metric
+#' @param do.scale Whether to scale response before evaluation (only applies to pearson & spearman metrics)
+#' @param min.cells Minimum cells per group to include in evaluation
+#'
+#' @export
+#'
+EvaluateLinearModel <- function(mdl.fit,
+                                x.test,
+                                y.test,
+                                groups,
+                                eval.metric,
+                                do.scale = T,
+                                min.cells = 3) {
+
+  if (!is.list(groups)) {
+    groups <- UnflattenGroups(groups)
+  }
+  groups <- lapply(groups, function(cells) intersect(cells, rownames(x.test)))
+
+  ncells <- sapply(groups, length)
+  groups.keep <- names(ncells[ncells >= min.cells])
+  groups <- groups[groups.keep]
+
+  if ((length(dim(y.test)) == 2) && (!eval.metric %in% c("pearson", "spearman"))) {
+    stop("eval.metric must be either pearson, spearman for multi-gaussian response")
+  }
+
+  if ((length(dim(y.test)) == 1) && (eval.metric %in% c("pearson", "spearman"))) {
+    stop("response must be multi-gaussian (2D) to use pearson or spearman metrics")
+  }
+
+  if (is.factor(y.test) && (eval.metric != "cross-entropy")) {
+    stop("eval.metric must be cross entropy for multi-class response")
+  }
+
+  y.pred <- predict(mdl.fit, newx = x.test, type = "response")
+
+  if (eval.metric %in% c("pearson", "spearman")) {
+    y.pred <- y.pred[,,1]
+    cell.names <- rownames(y.test)
+    if (do.scale) {
+      y.pred <- apply(y.pred, 2, scale)
+      y.pred[is.na(y.pred) | is.nan(y.pred)] <- 0
+      y.test <- apply(y.test, 2, scale)
+      y.test[is.na(y.test) | is.nan(y.test)] <- 0
+      rownames(y.pred) <- rownames(y.test) <- cell.names
+    }
+
+    pred.avg <- sapply(groups, function(cells) Matrix::colMeans(y.pred[cells,]))
+    true.avg <- sapply(groups, function(cells) Matrix::colMeans(y.test[cells,]))
+
+    groups.eval <- sapply(names(groups), function(i) {
+      cor(pred.avg[,i], true.avg[,i], method = eval.metric)
+    })
+    names(groups.eval) <- names(groups)
+
+  } else if (eval.metric == "cross-entropy") {
+    y.pred <- y.pred[,,1]
+    y_1hot <- model.matrix(~0 + y.test)
+    colnames(y_1hot) <- gsub("y.test", "", colnames(y_1hot))
+    rownames(y_1hot) <- names(y.test)
+
+    y_1hot <- y_1hot[,colnames(y.pred)]
+
+    groups.eval <- sapply(groups, function(cells) {
+      cross_entropy(y.pred[cells,], y_1hot[cells,])
+    })
+  } else if (eval.metric == "euclidean") {
+    y.pred <- y.pred[,1]
+    groups.eval <- sapply(groups, function(cells) {
+      sum((y.pred[cells] - y.test[cells])^2)
+    })
+  }
+
+  df <- data.frame(group = names(groups.eval),
+                   ncells = ncells[names(groups.eval)])
+  df[[eval.metric]] <- groups.eval
+
+  return(df)
+}
+
+
+#' Wrapper function for running a ElasticNet model on a single cell dataset
+#'
+#' @param obj Seurat object
+#' @param pert.col Metadata column containing perturbation info (required)
+#' @param batch.col Metadata column containing batch info (default: NULL)
+#' @param size.factor.col Metadata column containing library size info (default: NULL)
+#' @param mito.col Metadata column containing mitochondrial fraction info (default: NULL)
+#' @param response.col Metadata column containing the desired response.
+#'                     If NULL, the normalized data in the Seurat object will be used as the response.
+#' @param features.use If response.col is NULL, a subset of features to use for the response
+#' @param test.prop Proportion of cells held out for model evaluation
+#' @param family GLM family to use for elasticnet (default: mgaussian)
+#' @param alpha.seq Sequence of alpha values to test
+#' @param plot.cv Plot cross validation results (default: True)
+#' @param n.cores Number of cores to use (default: 4)
+#' @param nlambda Number of lambda values to test (default: 10)
+#' @param lambda.min.ratio Sets the minimum lambda value to test (default: 0.01)
+#' @param nfolds Number of folds to cross validate over (default: 5)
+#' @param seed Random seed for fold reproducibility
+#' @param seq.lambda.pred Predict expression at each lambda value sequentially to save memory (default: F)
+#' @param eval.metric Model evaluation metric
+#'
+#' @return Returns a list with the design matrix, response, train/test split
+#'         cross validation results, fitted model, model coefficients, and evaluation metrics
+#' @export
+#'
+RunLinearModel <- function(obj,
+                           pert.col,
+                           batch.col = NULL,
+                           size.factor.col = NULL,
+                           mito.col = NULL,
+                           response.col = NULL,
+                           features.use = NULL,
+                           test.prop = 0.2,
+                           family = NULL,
+                           alpha.seq = c(0.1, 0.4, 0.7, 0.9, 0.95, 1),
+                           plot.cv = T,
+                           n.cores = 4,
+                           nlambda = 10,
+                           lambda.min.ratio = 0.01,
+                           nfolds = 4,
+                           seed = NULL,
+                           seq.lambda.pred = F,
+                           eval.metric = NULL) {
+  ## Setup model
+  mdl.list <- SetupLinearModel(obj,
+                               pert.col = pert.col,
+                               response.col = response.col,
+                               batch.col = batch.col,
+                               size.factor.col = size.factor.col,
+                               mito.col = mito.col,
+                               features.use = features.use,
+                               test.prop = test.prop)
+
+  train.ix <- mdl.list$train.cells
+  test.ix <- mdl.list$test.cells
+  perts <- as.factor(mdl.list$perts)
+
+  if (is.null(family)) {
+    family <- mdl.list$family
+  }
+
+  ## Optimize hyperparameters on training set
+  if (mdl.list$family == "mgaussian") {
+    y.train <- mdl.list$y[train.ix,]
+    y.test <- mdl.list$y[test.ix,]
+  } else {
+    y.train <- mdl.list$y[train.ix]
+    y.test <- mdl.list$y[test.ix]
+  }
+
+
+  cv <- RunCrossValidation(mdl.list$x[train.ix,],
+                           y.train,
+                           groups = perts[train.ix],
+                           family = family,
+                           nfolds = nfolds,
+                           nlambda = nlambda,
+                           n.cores = n.cores,
+                           seed = seed,
+                           plot = plot.cv,
+                           lambda.min.ratio = lambda.min.ratio,
+                           seq.lambda.pred = seq.lambda.pred)
+  mdl.list$cv <- cv
+
+  ## Run full model on training set
+  fit <- glmnet(mdl.list$x[train.ix,],
+                y.train,
+                family = family,
+                alpha = cv$alpha,
+                lambda = cv$lambda,
+                standardize = F)
+  mdl.list$model <- fit
+  mdl.list$coefs <- GetCoefMatrix(fit)
+
+  ## Run covariates only model on training set
+  cov.vars <- colnames(mdl.list$x)[!colnames(mdl.list$x) %in% levels(perts)]
+  cov.fit <- glmnet(mdl.list$x[train.ix, cov.vars],
+                    y.train,
+                    family = family,
+                    alpha = cv$alpha,
+                    lambda = cv$lambda,
+                    standardize = F)
+
+  ## Evaluate model
+  if (is.null(eval.metric)) {
+    if (family == "mgaussian") {
+      eval.metric <- "pearson"
+    } else if (family == "multinomial") {
+      eval.metric <- "cross-entropy"
+    } else {
+      eval.metric <- "euclidean"
+    }
+  }
+
+  mdl.eval <- EvaluateLinearModel(fit,
+                                  x.test = mdl.list$x[test.ix,],
+                                  y.test = y.test,
+                                  groups = perts,
+                                  eval.metric = eval.metric)
+  cov.eval <- EvaluateLinearModel(cov.fit,
+                                  x.test = mdl.list$x[test.ix, cov.vars],
+                                  y.test = y.test,
+                                  groups = perts,
+                                  eval.metric = eval.metric)
+
+  mdl.eval[[paste0(eval.metric, "_reduced")]] <- cov.eval[[eval.metric]]
+  if (family == "mgaussian") {
+    mdl.eval[["rel_performance"]] <- log2((mdl.eval[[eval.metric]] + 1e-10)/(cov.eval[[eval.metric]] + 1e-10))
+  } else {
+    mdl.eval[["rel_performance"]] <- log2((cov.eval[[eval.metric]] + 1e-10)/(mdl.eval[[eval.metric]] + 1e-10))
+  }
+  mdl.eval <- mdl.eval[order(mdl.eval$rel_performance, decreasing = T),]
+  mdl.list$evaluation <- mdl.eval
+
+  return(mdl.list)
+}
 
 
 #' Run per-gene linear mixed models using glmmLasso
@@ -309,377 +616,6 @@ GetCoefMatrix <- function(mfit) {
   colnames(cfs) <- gsub('genotype', '', colnames(cfs))
   return(cfs)
 }
-GetCoefMatrix <- compiler::cmpfun(GetCoefMatrix)
 
 
-#' Calculate cluster enrichment with logistic regression
-#'
-#' @param design.mat Design matrix for regression
-#' @param cov.mat Matrix of covariates to regress out
-#' @param clusters Cluster assignments
-#' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
-#' @param lambda.use Shrinkage parameter
-#' @param ctrl Control genotype to compare all other genotypes to (e.g. NTC, AAVS)
-#'
-#' @return Matrix of regression coefficients
-#' @export
-#'
-CalcClusterEnrich <- function(design.mat, cov.mat, clusters, alpha, lambda.use, ctrl = NULL) {
-  clusters <- as.factor(clusters)
-  if(is.null(ctrl)) {
-    design.mat.full <- as.matrix(cbind(design.mat, cov.mat))
-    fit <- glmnet(design.mat.full, as.factor(clusters), family = "multinomial",
-                  alpha = alpha, lambda = lambda.use)
-    return(GetCoefMatrix(fit))
-  } else {
-    genotypes <- colnames(design.mat)[colnames(design.mat) != ctrl]
-    cfs <- vapply(genotypes, function(g) {
-      if (grepl(":", g)) {
-        g1 <- strsplit(g, split = ":")[[1]][[1]]
-        g2 <- strsplit(g, split = ":")[[1]][[2]]
-        ix <- rowSums(design.mat[,c(g, g1, g2, ctrl)]) > 0
-        design.mat.full <- as.matrix(cbind(design.mat[ix, c(g, g1, g2, ctrl)], cov.mat[ix,]))
-        colnames(design.mat.full) <- c(g, g1, g2, ctrl, colnames(cov.mat))
-        fit <- glmnet(design.mat.full, as.factor(clusters)[rownames(design.mat.full)], family = "multinomial",
-                      alpha = alpha, lambda = lambda.use)
-      } else {
-        ix <- rowSums(design.mat[,c(g, ctrl)]) > 0
-        design.mat.full <- as.matrix(cbind(design.mat[ix, c(g, ctrl)], cov.mat[ix,]))
-        colnames(design.mat.full) <- c(g, ctrl, colnames(cov.mat))
-        fit <- glmnet(design.mat.full, as.factor(clusters)[rownames(design.mat.full)], family = "multinomial",
-                      alpha = alpha, lambda = lambda.use)
-      }
-      return(GetCoefMatrix(fit)[,g])
-    }, rep(0, nlevels(clusters)))
-  }
-}
-CalcClusterEnrich <- compiler::cmpfun(CalcClusterEnrich)
-
-
-
-#' Calculate cluster enrichment with logistic regression
-#'
-#' @param design.mat Design matrix for regression
-#' @param cov.mat Matrix of covariates to regress out
-#' @param clusters Cluster assignments
-#' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
-#' @param lambda.use Shrinkage parameter
-#' @param n.rand Number of permutations
-#' @param n.cores Number of multiprocessing cores
-#' @param ctrl Control genotype to compare all other genotypes to (e.g. NTC, AAVS)
-#'
-#' @return Matrix of regression coefficients
-#' @import snow
-#' @import glmnet
-#' @import abind
-#'
-#' @export
-#'
-CalcClusterEnrichPvals <- function(design.mat, cov.mat, clusters, alpha, lambda.use,
-                                   n.rand = 1000, n.cores = 8, ctrl = NULL) {
-  design.mat <- as.matrix(design.mat)
-
-  if (!is.null(cov.mat)) {
-    cov.mat <- as.matrix(cov.mat);
-    stopifnot(all(rownames(design.mat) == rownames(cov.mat)))
-  }
-  design.mat.full <- cbind(design.mat, cov.mat)
-
-  cfs <- CalcClusterEnrich(design.mat, cov.mat, clusters, alpha, lambda.use, ctrl = ctrl)
-
-  cl <- snow::makeCluster(n.cores, type = "SOCK")
-  snow::clusterExport(cl, c("design.mat", "cov.mat", "clusters", "alpha", "lambda.use", "ctrl",
-                            "GetCoefMatrix"), envir = environment())
-  source.log <- snow::parLapply(cl, 1:n.cores, function(i) library(glmnet))
-  cfs.rand <- snow::parLapply(cl, 1:n.rand, function(i) {
-    design.mat.permute <- design.mat[sample(1:nrow(design.mat)),]
-    rownames(design.mat.permute) <- rownames(design.mat)
-    CalcClusterEnrich(design.mat.permute, cov.mat, clusters, alpha, lambda.use, ctrl = ctrl)
-  })
-  snow::stopCluster(cl)
-  cfs.rand <- abind::abind(cfs.rand, along = 3)
-
-  return(.calc_pvals_cfs(cfs, cfs.rand))
-}
-CalcClusterEnrichPvals <- compiler::cmpfun(CalcClusterEnrichPvals)
-
-
-
-#' Calculate penalized linear regression with glmnet
-#'
-#' @param design.matrix Design matrix for regression
-#' @param metadata Additional covariates to take into account (will not be permuted)
-#' @param y Linear model response
-#' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
-#' @param lambda.use Coefficient regularization parameter
-#' @param family Regression family to use
-#' @param ctrl Control variable in the design matrix (optional)
-#'
-#' @return Matrix of regression coefficients
-#' @export
-#'
-CalcGlmnet <- function(design.matrix, metadata, y, alpha, lambda.use, family, ctrl = NULL) {
-  if (is.null(ctrl)) {
-    x <- Matrix(cbind(design.matrix, metadata))
-    mfit <- glmnet::glmnet(x, y = y, family = family, alpha = alpha, lambda = lambda.use,
-                           standardize = F)
-    cfs <- GetCoefMatrix(mfit)
-    cfs <- cfs[,colnames(design.matrix)]
-  } else {
-    genotypes <- colnames(design.matrix)[colnames(design.matrix) != ctrl]
-    cfs <- vapply(genotypes, function(g) {
-      if (grepl(":", g)) {
-        g1 <- strsplit(g, split = ":")[[1]][[1]]
-        g2 <- strsplit(g, split = ":")[[1]][[2]]
-        ix <- Matrix::rowSums(design.matrix[,c(g, g1, g2, ctrl)]) > 0
-        x <- Matrix(cbind(design.matrix[ix, c(g, g1, g2)], metadata[ix,]))
-        colnames(x) <- c(g, g1, g2, colnames(metadata))
-        mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.use,
-                               standardize = F)
-      } else {
-        ix <- Matrix::rowSums(design.matrix[,c(g, ctrl)]) > 0
-        x <- Matrix(cbind(design.matrix[ix, g], metadata[ix,]))
-        colnames(x) <- c(g, colnames(metadata))
-        mfit <- glmnet::glmnet(x, y = y[ix,], family = family, alpha = alpha, lambda = lambda.use,
-                               standardize = F)
-      }
-      return(GetCoefMatrix(mfit)[,g])
-    }, rep(0, ncol(y)))
-    colnames(cfs) <- genotypes
-  }
-
-  return(cfs)
-}
-CalcGlmnet <- compiler::cmpfun(CalcGlmnet)
-
-
-#' Calculate regression coefficients and p-values via permutation testing
-#'
-#' @param design.matrix Design matrix for regression
-#' @param metadata Additional covariates to take into account (will not be permuted)
-#' @param y Linear model response
-#' @param alpha Elasticnet ratio: (0 is fully L2, 1 fully is L1)
-#' @param lambda.use Coefficient regularization parameter
-#' @param family Regression family to use
-#' @param ctrl Control variable to compare against (optional)
-#' @param n.rand Number of permutations for calculating coefficient significance
-#' @param n.cores Number of cores to use
-#' @param n.bins If binning genes, number of bins to use
-#' @param use.quantiles If binning genes, whether or not to bin by quantile
-#' @param output.name Column name of regression coefficient
-#'
-#' @return Returns a dataframe with Gene, Perturbation, log-FC, p-value
-#' @import snow
-#' @import lsr
-#' @import qvalue
-#' @importFrom data.table rbindlist
-#' @export
-#'
-CalcGlmnetPvals <- function(design.matrix, metadata, y, alpha, lambda.use, family,
-                            ctrl = NULL, n.rand = 20, n.cores = 16, n.bins = 10,
-                            use.quantiles = T, output.name = "cf") {
-
-  metadata <- as.matrix(metadata)
-  cfs <- CalcGlmnet(design.matrix, metadata, y, alpha, lambda.use, family, ctrl)
-
-  cl <- snow::makeCluster(n.cores, type = "SOCK")
-  snow::clusterExport(cl, c("design.matrix", "y", "metadata", "alpha", "lambda.use",
-                            "family", "GetCoefMatrix"), envir = environment())
-  source.log <- snow::parLapply(cl, 1:n.cores, function(i) library(glmnet))
-  cfs.rand <- snow::parLapply(cl, 1:n.rand, function(i) {
-    design.matrix.permute <- design.matrix[sample(1:nrow(design.matrix)),]
-    CalcGlmnet(design.matrix.permute, metadata, y, alpha, lambda.use, family, ctrl)
-  })
-  snow::stopCluster(cl)
-
-  y <- as.matrix(y)
-  gene.covs <- data.frame(gene_avgs = colMeans(y), gene_vars = matrixStats::colVars(y))
-  null.coefs.df <- lapply(cfs.rand, .flatten_score_matrix, output.name = output.name,
-                          gene.covs = gene.covs, group.covs = NULL)
-  null.coefs.df <- rbindlist(null.coefs.df)
-  null.coefs.df <- .get_multi_bins(null.coefs.df, colnames(gene.covs), n.bins, use.quantiles, bin.group = T)
-  null.binned.dat <- .get_binned_list(null.coefs.df, output.name)
-  rm(null.coefs.df); invisible(gc());
-
-  coefs.df <- .flatten_score_matrix(cfs, output.name, gene.covs, NULL)
-  coefs.df <- .get_multi_bins(coefs.df, colnames(gene.covs), n.bins, use.quantiles, bin.group = T)
-  coefs.df <- .calc_emp_pvals(coefs.df, null.binned.dat, output.name = output.name, n.cores = round(n.cores/2))
-  coefs.df <- coefs.df[order(coefs.df$p_val),]
-
-  coefs.df[c("gene_avgs", "gene_vars", "bin.index")] <- NULL
-  return(coefs.df)
-}
-CalcGlmnetPvals <- compiler::cmpfun(CalcGlmnetPvals)
-
-
-
-#### Permutation testing and P-value matrix manipulation ####
-
-## Given a matrix of regression coefficients, and a 3D array of permuted coefficients
-## calculate empirical p-values
-.calc_pvals_cfs <- function(cfs, cfs.rand) {
-  p.vals <- matrix(1, nrow(cfs), ncol(cfs))
-  colnames(p.vals) <- colnames(cfs)
-  rownames(p.vals) <- rownames(cfs)
-  for (i in 1:nrow(cfs)) {
-    for (j in 1:ncol(cfs)) {
-      v <- sort(na.omit(cfs.rand[i,j,]))
-      b <- cfs[i,j]
-      if (b > 0) {
-        p.vals[i,j] <- calcPvalGreaterCpp(v, b)
-      } else if (b < 0) {
-        p.vals[i,j] <- -1*calcPvalLessCpp(v, b)
-      } else {
-        p.vals[i,j] <- 1
-      }
-    }
-  }
-  return(p.vals)
-}
-.calc_pvals_cfs <- compiler::cmpfun(.calc_pvals_cfs)
-
-
-## Helper function for p-value calculation.
-.flatten_score_matrix <- function(score.matrix, output.name, gene.covs = NULL, group.covs = NULL) {
-  scores.df <- as.data.frame.table(score.matrix, stringsAsFactors = F, responseName = output.name)
-  colnames(scores.df) <- c('Gene','Group', output.name)
-  num.cfs <- nrow(scores.df)
-
-  if (!is.null(gene.covs)) {
-    for (cov in colnames(gene.covs)) {
-      scores.df[[cov]] <- numeric(num.cfs)
-    }
-  }
-
-  if (!is.null(group.covs)) {
-    for (cov in colnames(group.covs)) {
-      scores.df[[cov]] <- numeric(num.cfs)
-    }
-  }
-
-  st <- 1
-  en <- nrow(score.matrix)
-  for (i in 1:ncol(score.matrix)) {
-    for (cov in colnames(gene.covs)) {
-      scores.df[st:en, cov] <- gene.covs[[cov]]
-    }
-    for (cov in colnames(group.covs)) {
-      scores.df[st:en, cov] <- group.covs[i,cov]
-    }
-
-    st <- st + nrow(score.matrix)
-    en <- en + nrow(score.matrix)
-  }
-
-  return(scores.df)
-}
-.flatten_score_matrix <- compiler::cmpfun(.flatten_score_matrix)
-
-
-## Helper function for p-value calculation.
-.get_multi_bins <- function(scores.df, all.covs, n.bins, use.quantiles = F, bin.direction = F, bin.group = F) {
-  if (length(n.bins) == 1) {
-    n.bins <- rep(n.bins, length(all.covs))
-  }
-  names(n.bins) <- all.covs
-
-  bin.cov.list <- c()
-  for (cov in all.covs) {
-    bin.cov <- paste(cov, 'binned', sep = '_')
-    if (use.quantiles) {
-      bin.cov.list[[bin.cov]] <- factor(lsr::quantileCut(scores.df[[cov]], n = n.bins[[cov]],
-                                                         labels = F, include.lowest = T))
-    } else {
-      bin.cov.list[[bin.cov]] <- factor(cut(scores.df[[cov]], breaks = n.bins[[cov]],
-                                            labels = F, include.lowest = T))
-    }
-  }
-
-  if (bin.direction) {
-    bin.cov.list[['Direction']] <- factor(scores.df$Direction)
-  }
-
-  if (bin.group) {
-    bin.cov.list[['Group']] <- factor(scores.df$Group)
-  }
-
-  bin <- interaction(bin.cov.list, drop = T, sep = '_')
-  bin.names <- levels(bin)
-
-  bin.idx <- 1:length(bin.names)
-  names(bin.idx) <- bin.names
-
-  bin <- as.character(bin)
-
-  scores.df$bin.index <- vapply(bin, function(x) bin.idx[[x]], 1)
-  return(scores.df)
-}
-.get_multi_bins <- compiler::cmpfun(.get_multi_bins)
-
-
-## Helper function for p-value calculation.
-.get_binned_list <- function(scores.df, output.name) {
-  bin.names <- sort(unique(scores.df$bin.index))
-
-  binned.dat <- lapply(bin.names, function(x) {
-    scores <- scores.df[scores.df$bin.index == x,];
-    if (nrow(scores) > 0) {
-      return(sort(omitNaCpp(scores[[output.name]]), decreasing = F))
-    } else {
-      return(c())
-    }
-  })
-  return(binned.dat)
-}
-.get_binned_list <- compiler::cmpfun(.get_binned_list)
-
-
-## Helper function for p-value calculation.
-.fast_pvals <- function(r, binned.dat.up, binned.dat.dn) {
-  bin.idx <- r[[1]]
-  x <- r[[2]]
-  if (x >= 0) {
-    v <- binned.dat.up[[bin.idx]]
-    p.val <- calcPvalGreaterCpp(v,x)
-  } else {
-    v <- binned.dat.dn[[bin.idx]]
-    p.val <- calcPvalLessCpp(v,x)
-  }
-  return(p.val)
-}
-.fast_pvals <- compiler::cmpfun(.fast_pvals)
-
-
-## Helper function for p-value calculation.
-.calc_emp_pvals <- function(scores.df, binned.dat, output.name, n.cores = 1, direction = c("both", "lower"),
-                           correct = "BH") {
-  scores.mat <- as.matrix(scores.df[c('bin.index', output.name)])
-
-  binned.dat.up <- lapply(binned.dat, function(v) v[v >= 0])
-  binned.dat.dn <- lapply(binned.dat, function(v) v[v <= 0])
-  rm(binned.dat)
-
-  if (n.cores > 1) {
-    cl <- makeCluster(n.cores, type = 'SOCK')
-    snow::clusterExport(cl, c('binned.dat.up', 'binned.dat.dn'), envir = environment())
-    print('Starting P-Value Calculations')
-    coefs.pvals <- snow::parApply(cl, scores.mat, 1, .fast_pvals, binned.dat.up = binned.dat.up,
-                                  binned.dat.dn = binned.dat.dn)
-    snow::stopCluster(cl)
-  } else {
-    print('Starting P-Value Calculations')
-    coefs.pvals <- apply(scores.mat, 1, .fast_pvals, binned.dat.up = binned.dat.up,
-                         binned.dat.dn = binned.dat.dn)
-  }
-
-  scores.df$p_val <- coefs.pvals
-  if (correct == "qvalue") {
-    scores.df$FDR <- qvalue::qvalue(coefs.pvals)$qvalues
-  } else {
-    scores.df$FDR <- p.adjust(coefs.pvals, method = "BH")
-  }
-  scores.df <- scores.df[order(scores.df$p_val),]
-  return(scores.df)
-}
-.calc_emp_pvals <- compiler::cmpfun(.calc_emp_pvals)
 

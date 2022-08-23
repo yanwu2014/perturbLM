@@ -1,8 +1,8 @@
 Package: perturbLM
 Type: Package
-Title: Analyzes the effect of perturbations on the single cell transcriptome using linear models.
-       Inspired by the MIMOSCA python package (https://github.com/asncd/MIMOSCA)
-Version: 0.4.4
+Title: A lightweight R package that uses linear models to analyze the effects of chemical/genetic perturbations, 
+       conditions, and disease states on single gene expression.
+Version: 1.0.0
 Author: Yan Wu
 Maintainer: Yan Wu <yauwning@gmail.com>
 Description: 
@@ -23,13 +23,16 @@ Imports:
       snow,
       lsr,
       qvalue,
+      liger,
       data.table,
       FNN,
       ggplot2,
       matrixStats,
       compiler,
-      liger,
       abind,
       glmmLasso,
       reshape2
+Suggests:
+      Seurat,
+      SeuratDisk
 RoxygenNote: 7.2.1

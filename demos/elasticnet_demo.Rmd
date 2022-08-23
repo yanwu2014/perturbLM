@@ -1,0 +1,120 @@
+---
+title: "Analyzing single cell perturbational response datasets with perturbLM"
+output: html_notebook
+---
+
+perturbLM is a lightweight package for assessing the effects of perturbations on single cell omics datasets.
+Here, we'll demonstrate fitting a regularized linear model to a dataset measuring the single cell RNA-seq response
+to transcription factor overexpression in H1 stem cells.
+
+First download the example dataset from figshare [here](). The study that generated this dataset is linked [here](https://www.cell.com/cell-systems/pdfExtended/S2405-4712(18)30433-2). The dataset is stored as a 
+[Seurat object](https://satijalab.org/seurat/)
+
+Next load the necessary libraries
+```{r}
+library(perturbLM)
+library(Seurat)
+library(Matrix)
+library(glmnet)
+```
+
+
+Read in the dataset and pull out the variable genes
+```{r}
+obj <- readRDS("/share/ywu/perturbation-analysis/processed_data/parekh.rds")
+var.genes <- intersect(obj@assays$RNA@var.features, rownames(obj))
+obj
+```
+
+
+perturbLM offers a wrapper functionm `RunLinearModel`, that 1) sets up the linear model inputs and outputs,
+2) optimizes model hyperparameters, 3) runs the linear model, and 4) evaluates the linear model
+and assesses which perturbations are likely to have significant effects. `RunLinearModel` automatically
+plots the hyperparameter optimization
+```{r}
+model.results <- RunLinearModel(obj,
+                                pert.col = "condition",
+                                batch.col = "batch",
+                                size.factor.col = "nCount_RNA",
+                                mito.col = "percent.mt",
+                                features.use = var.genes)
+```
+
+
+The `RunLinearModel` wrapper function returns a list including the model design matrix (x),
+response (y) which in this case is the normalized expression matrix, the ElasticNet model (model)
+and coefficients (coefs), and the model evaluation
+```{r}
+names(model.results)
+```
+
+
+The model coefficients represent the effect of each perturbation on gene expression
+```{r}
+print(dim(model.results$coefs))
+print(model.results$coefs[1:5, 1:5])
+```
+
+
+The evaluation dataframe summarizes which perturbations the model was able to effectively predict by 
+comparing the full model with a reduced model that has no perturbation information.
+```{r}
+head(model.results$evaluation)
+```
+The `rel_performance` metric describes the relative performance of the full vs reduced model for
+each perturbation. In this case, it's specifically the log2 transform of the ratio of the full
+model pearson correlation with the reduced model pearson correlation. You can modify the evaluation metric
+in `RunLinearModel` by specifying the `eval.metric` parameter. Perturbations with a high `rel_performance` (>>1) are
+more likely to have a significant effect on expression.
+
+
+We can pull out all the perturbations with `rel_performance > 2`.
+```{r}
+sig.perts <- subset(model.results$evaluation, rel_performance > 2)$group
+sig.perts
+```
+
+And find the top up/downregulated genes (by coefficient magnitude) for each perturbation
+```{r}
+ngenes <- 3
+top.sig.genes <- lapply(sig.perts, function(i) {
+  top.up <- head(names(sort(model.results$coefs[,i], decreasing = T)), n = ngenes)
+  top.dn <- head(names(sort(model.results$coefs[,i], decreasing = F)), n = ngenes)
+  c(top.up, top.dn)
+})
+top.sig.genes <- unique(unlist(top.sig.genes, F, F))
+length(top.sig.genes)
+```
+
+
+We can create a new Seurat object with the model coefficients for visualization
+```{r}
+pert.coefs <- model.results$coefs[,colnames(model.results$coefs) %in% levels(as.factor(obj$condition))]
+coef.obj <- CreateSeuratObject(pert.coefs)
+coef.obj <- ScaleData(coef.obj)
+coef.obj$pert <- as.factor(colnames(coef.obj))
+coef.obj
+```
+
+We can plot the effects of the top perturbations
+```{r}
+coef.obj.top <- coef.obj[,sig.perts]
+coef.obj.top$pert <- droplevels(coef.obj.top$pert)
+levels(coef.obj.top$pert) <- sig.perts
+DoHeatmap(coef.obj.top, features = top.sig.genes, group.by = "pert", draw.lines = F)
+```
+
+We can also embed the perturbations using PCA
+```{r}
+coef.obj <- RunPCA(coef.obj, features = rownames(coef.obj))
+PCAPlot(coef.obj, group.by = "pert", label = T) + 
+  theme(legend.position = "none")
+```
+
+We can also use a nonlinear embedding like UMAP
+```{r}
+coef.obj <- RunUMAP(coef.obj, dims = 1:15)
+DimPlot(coef.obj, reduction = "umap", label = T, group.by = "pert") + 
+  theme(legend.position = "none")
+```
+

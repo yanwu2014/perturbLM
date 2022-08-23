@@ -9,7 +9,7 @@ CreateDesignMatrix(groups, min.cells = 10)
 \arguments{
 \item{groups}{Perturbation dictionary (in list format) or named vector}
 
-\item{min.cells}{Minumum number of cells per perturbation}
+\item{min.cells}{Min number of cells per perturbation}
 }
 \value{
 Sparse binary matrix where rows are cells, and columns are perturbation. 1 means the cell received the perturbation.

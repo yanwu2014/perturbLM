@@ -8,7 +8,6 @@ RunCrossValidation(
   x,
   y,
   groups,
-  metric = "pearson",
   alpha.seq = c(0.1, 0.4, 0.7, 0.9, 0.95, 1),
   plot = T,
   n.cores = 4,
@@ -26,8 +25,6 @@ RunCrossValidation(
 \item{y}{Expression response}
 
 \item{groups}{Perturbation dictionary (in list format) or named vector}
-
-\item{metric}{Metric to evaluate models (must be either pearson, spearman, or euclidean)}
 
 \item{alpha.seq}{Sequence of alpha values to test}
 

@@ -153,7 +153,7 @@ DesignMatrixGenotypes <- function(genotypes.list, max.genotypes = 2, min.cells =
 #' Convert perturbation dictionary to design matrix
 #'
 #' @param groups Perturbation dictionary (in list format) or named vector
-#' @param min.cells Minumum number of cells per perturbation
+#' @param min.cells Min number of cells per perturbation
 #'
 #' @return Sparse binary matrix where rows are cells, and columns are perturbation. 1 means the cell received the perturbation.
 #'
@@ -165,7 +165,7 @@ CreateDesignMatrix <- function(groups,  min.cells = 10) {
   if (is.list(groups)) {
     group.list <- groups
   } else {
-    group.list <- UnflattenGroups(groups)
+    group.list <- UnflattenGroups(as.factor(groups))
   }
 
   cell.names <- unique(unlist(group.list, F, F))

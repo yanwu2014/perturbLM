@@ -2,19 +2,9 @@
 % Please edit documentation in R/glmnet.R
 \name{cross_validate_lambda}
 \alias{cross_validate_lambda}
-\title{Helper function for running cross validation on a sequence of lambda values}
+\title{Helper function for running cross validation on a sequence of lambda values for the mgaussian family}
 \usage{
-cross_validate_lambda(
-  x,
-  y,
-  groups,
-  alpha,
-  metric,
-  family,
-  lambda,
-  folds,
-  seq.lambda.pred
-)
+cross_validate_lambda(x, y, groups, alpha, lambda, folds, seq.lambda.pred)
 }
 \arguments{
 \item{x}{Design matrix + covariates matrix}
@@ -25,19 +15,19 @@ cross_validate_lambda(
 
 \item{alpha}{Alpha value}
 
-\item{metric}{Metric to use for evaluation (pearson, spearman)}
-
-\item{family}{GLM family to use for elasticnet (default: mgaussian)}
-
 \item{lambda}{lambda values to test}
 
 \item{folds}{List of train/test splits}
 
 \item{seq.lambda.pred}{Predict expression at each lambda value sequentially to save memory}
+
+\item{metric}{Metric to use for evaluation (pearson, spearman)}
+
+\item{family}{GLM family to use for elasticnet (default: mgaussian)}
 }
 \value{
 Matrix of cross validation correlations per fold
 }
 \description{
-Helper function for running cross validation on a sequence of lambda values
+Helper function for running cross validation on a sequence of lambda values for the mgaussian family
 }
